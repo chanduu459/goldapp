@@ -1,8 +1,10 @@
-import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/gold_ornament_product.dart';
@@ -21,7 +23,23 @@ class CollectionOption {
   final String name;
 }
 
+class ModelImageOption {
+  const ModelImageOption({
+    required this.id,
+    required this.title,
+    required this.imageUrl,
+    required this.categoryId,
+  });
+
+  final int id;
+  final String title;
+  final String imageUrl;
+  final int categoryId;
+}
+
 enum ProductImageType { primary, hover }
+
+enum ProductImageInputMode { manual, ai }
 
 class AddProductViewModel extends ChangeNotifier {
   final formKey = GlobalKey<FormState>();
@@ -49,11 +67,17 @@ class AddProductViewModel extends ChangeNotifier {
   String? selectedPrimaryImageName;
   Uint8List? selectedHoverImageBytes;
   String? selectedHoverImageName;
+  ProductImageInputMode selectedImageInputMode = ProductImageInputMode.manual;
 
   List<CategoryOption> categories = const [];
   List<CollectionOption> collections = const [];
+  List<ModelImageOption> aiModelImages = const [];
   int? selectedCategoryId;
   int? selectedCollectionId;
+  int? selectedAiModelImageId;
+  String? selectedAiModelImageUrl;
+  bool isLoadingAiModelImages = false;
+  bool isGeneratingAiHoverImage = false;
 
   bool isNew = false;
   bool isBestSeller = false;
@@ -99,6 +123,8 @@ class AddProductViewModel extends ChangeNotifier {
         selectedCategoryId ??= categories.first.id;
       }
 
+      await _loadModelImagesForCategory(selectedCategoryId);
+
       if (categories.isEmpty) {
         errorMessage = 'No categories found. Create categories first.';
       }
@@ -112,7 +138,12 @@ class AddProductViewModel extends ChangeNotifier {
 
   void setSelectedCategory(int? value) {
     selectedCategoryId = value;
+    selectedAiModelImageId = null;
+    selectedAiModelImageUrl = null;
+    selectedHoverImageBytes = null;
+    selectedHoverImageName = null;
     notifyListeners();
+    _loadModelImagesForCategory(value);
   }
 
   void setSelectedCollection(int? value) {
@@ -219,6 +250,72 @@ class AddProductViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSelectedImageInputMode(ProductImageInputMode mode) {
+    selectedImageInputMode = mode;
+    errorMessage = null;
+    notifyListeners();
+  }
+
+  Future<void> _loadModelImagesForCategory(int? categoryId) async {
+    if (categoryId == null) {
+      aiModelImages = const [];
+      isLoadingAiModelImages = false;
+      notifyListeners();
+      return;
+    }
+
+    isLoadingAiModelImages = true;
+    notifyListeners();
+
+    try {
+      final rows = await Supabase.instance.client
+          .from('model_images')
+          .select('id, title, image_url, category_id')
+          .eq('category_id', categoryId)
+          .eq('is_active', true)
+          .order('sort_order', ascending: true)
+          .order('created_at', ascending: false);
+
+      aiModelImages = (rows as List<dynamic>)
+          .where((row) {
+            final url = (row['image_url'] as String?)?.trim() ?? '';
+            return url.isNotEmpty;
+          })
+          .map(
+            (row) => ModelImageOption(
+              id: row['id'] as int,
+              title: ((row['title'] as String?) ?? 'Model Image').trim(),
+              imageUrl: ((row['image_url'] as String?) ?? '').trim(),
+              categoryId: row['category_id'] as int,
+            ),
+          )
+          .toList(growable: false);
+    } catch (_) {
+      aiModelImages = const [];
+    } finally {
+      if (selectedAiModelImageId != null) {
+        final stillExists = aiModelImages.any(
+          (item) => item.id == selectedAiModelImageId,
+        );
+        if (!stillExists) {
+          selectedAiModelImageId = null;
+          selectedAiModelImageUrl = null;
+        }
+      }
+      isLoadingAiModelImages = false;
+      notifyListeners();
+    }
+  }
+
+  void setSelectedAiModelImage(ModelImageOption option) {
+    selectedAiModelImageId = option.id;
+    selectedAiModelImageUrl = option.imageUrl;
+    selectedHoverImageBytes = null;
+    selectedHoverImageName = null;
+    errorMessage = null;
+    notifyListeners();
+  }
+
   void setSelectedImage({
     required ProductImageType type,
     required Uint8List bytes,
@@ -228,6 +325,10 @@ class AddProductViewModel extends ChangeNotifier {
     if (type == ProductImageType.primary) {
       selectedPrimaryImageBytes = bytes;
       selectedPrimaryImageName = name;
+      if (selectedImageInputMode == ProductImageInputMode.ai) {
+        selectedHoverImageBytes = null;
+        selectedHoverImageName = null;
+      }
     } else {
       selectedHoverImageBytes = bytes;
       selectedHoverImageName = name;
@@ -276,6 +377,261 @@ class AddProductViewModel extends ChangeNotifier {
         .replaceAll(RegExp(r'[^a-z0-9\\s-]'), '')
         .replaceAll(RegExp(r'\\s+'), '-')
         .replaceAll(RegExp(r'-+'), '-');
+  }
+
+  Future<Uint8List> _downloadImageBytesFromUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      throw StateError('Selected model image URL is invalid.');
+    }
+    final response = await http.get(uri);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('Unable to download selected model image.');
+    }
+    if (response.bodyBytes.isEmpty) {
+      throw StateError('Selected model image is empty.');
+    }
+    return response.bodyBytes;
+  }
+
+  Uint8List? _decodeGeneratedImage(String value) {
+    if (value.isEmpty) {
+      return null;
+    }
+
+    final dataUrlPattern = RegExp(r'^data:image\/[^;]+;base64,(.+)$');
+    final dataUrlMatch = dataUrlPattern.firstMatch(value);
+    if (dataUrlMatch != null) {
+      return base64Decode(dataUrlMatch.group(1)!);
+    }
+
+    try {
+      return base64Decode(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Uint8List? _extractGeneratedBytesFromOpenRouter(dynamic decoded) {
+    if (decoded is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final choices = decoded['choices'];
+    if (choices is! List || choices.isEmpty) {
+      return null;
+    }
+
+    final firstChoice = choices.first;
+    if (firstChoice is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final message = firstChoice['message'];
+    if (message is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final content = message['content'];
+    if (content is List) {
+      for (final part in content) {
+        if (part is! Map<String, dynamic>) {
+          continue;
+        }
+
+        final imageUrlValue = part['image_url'];
+        if (imageUrlValue is Map<String, dynamic>) {
+          final url = (imageUrlValue['url'] as String?)?.trim() ?? '';
+          final bytes = _decodeGeneratedImage(url);
+          if (bytes != null) {
+            return bytes;
+          }
+        } else if (imageUrlValue is String) {
+          final bytes = _decodeGeneratedImage(imageUrlValue.trim());
+          if (bytes != null) {
+            return bytes;
+          }
+        }
+
+        final b64 = (part['b64_json'] as String?)?.trim() ?? '';
+        if (b64.isNotEmpty) {
+          final bytes = _decodeGeneratedImage(b64);
+          if (bytes != null) {
+            return bytes;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<Uint8List> _generateHoverImageWithOpenRouter({
+    required Uint8List normalImageBytes,
+    required Uint8List modelImageBytes,
+    required String productName,
+  }) async {
+    var apiKey = dotenv.env['OPENROUTER_API_KEY']?.trim() ?? '';
+    if (apiKey.startsWith('"') && apiKey.endsWith('"') && apiKey.length > 1) {
+      apiKey = apiKey.substring(1, apiKey.length - 1).trim();
+    }
+    if (apiKey.toLowerCase().startsWith('bearer ')) {
+      apiKey = apiKey.substring(7).trim();
+    }
+    if (apiKey.isEmpty) {
+      throw StateError('Missing OPENROUTER_API_KEY in .env');
+    }
+
+    final model = dotenv.env['OPENROUTER_IMAGE_MODEL']?.trim().isNotEmpty == true
+      ? dotenv.env['OPENROUTER_IMAGE_MODEL']!.trim()
+      : 'openrouter/auto';
+
+    final normalBase64 = base64Encode(normalImageBytes);
+    final modelBase64 = base64Encode(modelImageBytes);
+    final prompt =
+        'Generate a single realistic hover product image for a jewelry catalog. '
+        'Use the first image as the main product reference and the second image as model/style reference. '
+        'Keep the jewelry details from the first image, blend naturally for hover state, clean background, '
+        'high quality e-commerce output. Product name: $productName.';
+
+    final runtimeOrigin = kIsWeb ? Uri.base.origin : '';
+    final siteUrl = dotenv.env['OPENROUTER_SITE_URL']?.trim().isNotEmpty == true
+      ? dotenv.env['OPENROUTER_SITE_URL']!.trim()
+      : (runtimeOrigin.isNotEmpty ? runtimeOrigin : 'http://localhost');
+    final appTitle = dotenv.env['OPENROUTER_APP_TITLE']?.trim().isNotEmpty == true
+        ? dotenv.env['OPENROUTER_APP_TITLE']!.trim()
+        : 'goldapp';
+
+    final response = await http.post(
+      Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+      headers: {
+        'Authorization': 'Bearer $apiKey',
+        'Content-Type': 'application/json',
+        'HTTP-Referer': siteUrl,
+        'X-Title': appTitle,
+      },
+      body: jsonEncode({
+        'model': model,
+        'messages': [
+          {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': prompt},
+              {
+                'type': 'image_url',
+                'image_url': {'url': 'data:image/jpeg;base64,$normalBase64'}
+              },
+              {
+                'type': 'image_url',
+                'image_url': {'url': 'data:image/jpeg;base64,$modelBase64'}
+              }
+            ],
+          }
+        ],
+      }),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      String details = '';
+      try {
+        final parsed = jsonDecode(response.body);
+        if (parsed is Map<String, dynamic>) {
+          final err = parsed['error'];
+          if (err is Map<String, dynamic>) {
+            final msg = (err['message'] as String?)?.trim() ?? '';
+            if (msg.isNotEmpty) {
+              details = msg;
+            }
+          }
+        }
+      } catch (_) {
+        // Keep fallback generic message when response body is not JSON.
+      }
+
+      if (response.statusCode == 401) {
+        throw StateError(
+          details.isNotEmpty
+              ? 'OpenRouter auth failed (401): $details'
+              : 'OpenRouter authentication failed (401). Check OPENROUTER_API_KEY in .env and restart the app.',
+        );
+      }
+
+      if (response.statusCode == 404 && details.isNotEmpty) {
+        throw StateError('OpenRouter model issue (404): $details');
+      }
+
+      throw StateError(
+        details.isNotEmpty
+            ? 'OpenRouter request failed (${response.statusCode}): $details'
+            : 'OpenRouter request failed (${response.statusCode}).',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    final generatedBytes = _extractGeneratedBytesFromOpenRouter(decoded);
+    if (generatedBytes == null || generatedBytes.isEmpty) {
+      throw StateError('OpenRouter did not return a generated image.');
+    }
+
+    return generatedBytes;
+  }
+
+  Future<bool> generateAiHoverImage() async {
+    if (selectedImageInputMode != ProductImageInputMode.ai) {
+      return false;
+    }
+    if (isGeneratingAiHoverImage) {
+      return false;
+    }
+
+    final normalBytes = selectedPrimaryImageBytes;
+    final normalName = selectedPrimaryImageName;
+    if (normalBytes == null || normalName == null) {
+      errorMessage = 'Upload normal image first before generating hover image.';
+      notifyListeners();
+      return false;
+    }
+
+    final modelUrl = selectedAiModelImageUrl;
+    if (modelUrl == null || modelUrl.isEmpty) {
+      errorMessage = 'Select a model image for this category first.';
+      notifyListeners();
+      return false;
+    }
+
+    isGeneratingAiHoverImage = true;
+    errorMessage = null;
+    notifyListeners();
+
+    try {
+      final modelBytes = await _downloadImageBytesFromUrl(modelUrl);
+      final productName = nameController.text.trim().isEmpty
+          ? 'gold-jewelry'
+          : nameController.text.trim();
+      final generatedBytes = await _generateHoverImageWithOpenRouter(
+        normalImageBytes: normalBytes,
+        modelImageBytes: modelBytes,
+        productName: productName,
+      );
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      setSelectedImage(
+        type: ProductImageType.hover,
+        bytes: generatedBytes,
+        name: 'hover-generated-$ts.png',
+      );
+      return true;
+    } on StateError catch (e) {
+      errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (_) {
+      errorMessage = 'Failed to generate hover image. Please try again.';
+      notifyListeners();
+      return false;
+    } finally {
+      isGeneratingAiHoverImage = false;
+      notifyListeners();
+    }
   }
 
   String _buildSku(String name) {
@@ -482,16 +838,41 @@ class AddProductViewModel extends ChangeNotifier {
       return null;
     }
 
-    if (selectedPrimaryImageBytes == null || selectedPrimaryImageName == null) {
-      errorMessage = 'Main image is required';
-      notifyListeners();
-      return null;
-    }
+    if (selectedImageInputMode == ProductImageInputMode.manual) {
+      if (selectedPrimaryImageBytes == null || selectedPrimaryImageName == null) {
+        errorMessage = 'Normal image is required for manual upload mode';
+        notifyListeners();
+        return null;
+      }
 
-    if (selectedHoverImageBytes == null || selectedHoverImageName == null) {
-      errorMessage = 'Hover image is required';
-      notifyListeners();
-      return null;
+      if (selectedHoverImageBytes == null || selectedHoverImageName == null) {
+        errorMessage = 'Hover image is required for manual upload mode';
+        notifyListeners();
+        return null;
+      }
+    } else {
+      final hasPrimaryUpload =
+          selectedPrimaryImageBytes != null && selectedPrimaryImageName != null;
+
+      if (!hasPrimaryUpload) {
+        errorMessage = 'AI mode requires a normal image upload.';
+        notifyListeners();
+        return null;
+      }
+
+      if (selectedAiModelImageUrl == null || selectedAiModelImageUrl!.isEmpty) {
+        errorMessage =
+            'Please select a model image for the selected category in AI mode.';
+        notifyListeners();
+        return null;
+      }
+
+      if (selectedHoverImageBytes == null || selectedHoverImageName == null) {
+        final generated = await generateAiHoverImage();
+        if (!generated) {
+          return null;
+        }
+      }
     }
 
     if (selectedCategoryId == null) {
@@ -533,16 +914,32 @@ class AddProductViewModel extends ChangeNotifier {
       final draft = buildProduct();
       final slug = '${_slugify(draft.name)}-${DateTime.now().millisecondsSinceEpoch}';
       final sku = _buildSku(draft.name);
-      final imageUrl = await _uploadImageToStorage(
-        type: ProductImageType.primary,
-        productName: draft.name,
-      );
-      uploadedPrimaryImageUrl = imageUrl;
-      final hoverImageUrl = await _uploadImageToStorage(
-        type: ProductImageType.hover,
-        productName: draft.name,
-      );
-      uploadedHoverImageUrl = hoverImageUrl;
+      late final String imageUrl;
+      late final String hoverImageUrl;
+
+      if (selectedImageInputMode == ProductImageInputMode.manual) {
+        imageUrl = await _uploadImageToStorage(
+          type: ProductImageType.primary,
+          productName: draft.name,
+        );
+        uploadedPrimaryImageUrl = imageUrl;
+        hoverImageUrl = await _uploadImageToStorage(
+          type: ProductImageType.hover,
+          productName: draft.name,
+        );
+        uploadedHoverImageUrl = hoverImageUrl;
+      } else {
+        imageUrl = await _uploadImageToStorage(
+          type: ProductImageType.primary,
+          productName: draft.name,
+        );
+        uploadedPrimaryImageUrl = imageUrl;
+        hoverImageUrl = await _uploadImageToStorage(
+          type: ProductImageType.hover,
+          productName: draft.name,
+        );
+        uploadedHoverImageUrl = hoverImageUrl;
+      }
 
       final formattedLongDescription =
           '${draft.longDescription.isEmpty ? draft.description : draft.longDescription}\nWeight: ${draft.weightInGrams}g, Purity: ${draft.purityKarat}K, Making Charge: ${draft.makingCharge}, Metal: ${draft.metalType}, Ring Size: ${draft.ringSize}, Carat: ${draft.caratWeight}, Width: ${draft.widthMm}mm, Rhodium Finish: ${draft.rhodiumFinish ? 'Yes' : 'No'}, Stock Number: ${draft.stockNumber}, Diamond Type: ${draft.diamondType}';

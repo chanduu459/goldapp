@@ -344,6 +344,7 @@ class _AddProductViewState extends State<AddProductView> {
                                   SizedBox(
                                     width: adaptiveWidth(desktop: 220, tablet: 200),
                                     child: DropdownButtonFormField<int>(
+                                      isExpanded: true,
                                       initialValue: _viewModel.selectedCategoryId,
                                       items: _viewModel.categories
                                           .map(
@@ -367,6 +368,7 @@ class _AddProductViewState extends State<AddProductView> {
                                   SizedBox(
                                     width: adaptiveWidth(desktop: 220, tablet: 200),
                                     child: DropdownButtonFormField<int?>(
+                                      isExpanded: true,
                                       initialValue: _viewModel.selectedCollectionId,
                                       items: [
                                         const DropdownMenuItem<int?>(
@@ -631,58 +633,48 @@ class _AddProductViewState extends State<AddProductView> {
                                 ],
                               ),
                               const SizedBox(height: 18),
-                              if (isNarrow)
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    _buildImageUploader(
-                                      title: 'Main Image',
-                                      isDragging: _isDraggingPrimary,
-                                      type: ProductImageType.primary,
-                                      fileName: _viewModel.selectedPrimaryImageName,
-                                      bytes: _viewModel.selectedPrimaryImageBytes,
-                                      onEnter: () {
-                                        setState(() {
-                                          _isDraggingPrimary = true;
-                                        });
+                              Text(
+                                'Image Upload Mode',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF17355C),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              SegmentedButton<ProductImageInputMode>(
+                                segments: const [
+                                  ButtonSegment<ProductImageInputMode>(
+                                    value: ProductImageInputMode.manual,
+                                    label: Text('Manual'),
+                                    icon: Icon(Icons.upload_file_outlined),
+                                  ),
+                                  ButtonSegment<ProductImageInputMode>(
+                                    value: ProductImageInputMode.ai,
+                                    label: Text('AI'),
+                                    icon: Icon(Icons.auto_awesome_outlined),
+                                  ),
+                                ],
+                                selected: {_viewModel.selectedImageInputMode},
+                                onSelectionChanged: _viewModel.isSubmitting
+                                    ? null
+                                    : (selection) {
+                                        final mode = selection.first;
+                                        _viewModel.setSelectedImageInputMode(mode);
                                       },
-                                      onExit: () {
-                                        setState(() {
-                                          _isDraggingPrimary = false;
-                                        });
-                                      },
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildImageUploader(
-                                      title: 'Hover Image',
-                                      isDragging: _isDraggingHover,
-                                      type: ProductImageType.hover,
-                                      fileName: _viewModel.selectedHoverImageName,
-                                      bytes: _viewModel.selectedHoverImageBytes,
-                                      onEnter: () {
-                                        setState(() {
-                                          _isDraggingHover = true;
-                                        });
-                                      },
-                                      onExit: () {
-                                        setState(() {
-                                          _isDraggingHover = false;
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                )
-                              else
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: _buildImageUploader(
-                                        title: 'Main Image',
+                              ),
+                              const SizedBox(height: 12),
+                              if (_viewModel.selectedImageInputMode ==
+                                  ProductImageInputMode.manual)
+                                if (isNarrow)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildImageUploader(
+                                        title: 'Normal Image',
                                         isDragging: _isDraggingPrimary,
                                         type: ProductImageType.primary,
-                                        fileName:
-                                            _viewModel.selectedPrimaryImageName,
+                                        fileName: _viewModel.selectedPrimaryImageName,
                                         bytes: _viewModel.selectedPrimaryImageBytes,
                                         onEnter: () {
                                           setState(() {
@@ -695,15 +687,12 @@ class _AddProductViewState extends State<AddProductView> {
                                           });
                                         },
                                       ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: _buildImageUploader(
+                                      const SizedBox(height: 16),
+                                      _buildImageUploader(
                                         title: 'Hover Image',
                                         isDragging: _isDraggingHover,
                                         type: ProductImageType.hover,
-                                        fileName:
-                                            _viewModel.selectedHoverImageName,
+                                        fileName: _viewModel.selectedHoverImageName,
                                         bytes: _viewModel.selectedHoverImageBytes,
                                         onEnter: () {
                                           setState(() {
@@ -716,9 +705,352 @@ class _AddProductViewState extends State<AddProductView> {
                                           });
                                         },
                                       ),
-                                    ),
-                                  ],
-                                ),
+                                    ],
+                                  )
+                                else
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: _buildImageUploader(
+                                          title: 'Normal Image',
+                                          isDragging: _isDraggingPrimary,
+                                          type: ProductImageType.primary,
+                                          fileName: _viewModel.selectedPrimaryImageName,
+                                          bytes: _viewModel.selectedPrimaryImageBytes,
+                                          onEnter: () {
+                                            setState(() {
+                                              _isDraggingPrimary = true;
+                                            });
+                                          },
+                                          onExit: () {
+                                            setState(() {
+                                              _isDraggingPrimary = false;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: _buildImageUploader(
+                                          title: 'Hover Image',
+                                          isDragging: _isDraggingHover,
+                                          type: ProductImageType.hover,
+                                          fileName: _viewModel.selectedHoverImageName,
+                                          bytes: _viewModel.selectedHoverImageBytes,
+                                          onEnter: () {
+                                            setState(() {
+                                              _isDraggingHover = true;
+                                            });
+                                          },
+                                          onExit: () {
+                                            setState(() {
+                                              _isDraggingHover = false;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                              else
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      _buildImageUploader(
+                                        title: 'Normal Image (Upload)',
+                                        isDragging: _isDraggingPrimary,
+                                        type: ProductImageType.primary,
+                                        fileName: _viewModel.selectedPrimaryImageName,
+                                        bytes: _viewModel.selectedPrimaryImageBytes,
+                                        onEnter: () {
+                                          setState(() {
+                                            _isDraggingPrimary = true;
+                                          });
+                                        },
+                                        onExit: () {
+                                          setState(() {
+                                            _isDraggingPrimary = false;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF3F7FF),
+                                          borderRadius: BorderRadius.circular(14),
+                                          border: Border.all(
+                                            color: const Color(0xFFCCE0FF),
+                                          ),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Select Model Image (Hover)',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: const Color(0xFF17355C),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              'Showing model images for the selected category.',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12,
+                                                color: const Color(0xFF4F627E),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            if (_viewModel.isLoadingAiModelImages)
+                                              const LinearProgressIndicator(
+                                                minHeight: 3,
+                                              )
+                                            else if (_viewModel
+                                                .aiModelImages.isEmpty)
+                                              const Text(
+                                                'No model images available for this category. Add model images first.',
+                                                style: TextStyle(
+                                                  color: Color(0xFF8A451A),
+                                                ),
+                                              )
+                                            else
+                                              Wrap(
+                                                spacing: 10,
+                                                runSpacing: 10,
+                                                children: _viewModel.aiModelImages
+                                                    .map((item) {
+                                                  final isSelected =
+                                                      _viewModel
+                                                              .selectedAiModelImageId ==
+                                                          item.id;
+                                                  return InkWell(
+                                                    borderRadius:
+                                                        BorderRadius.circular(12),
+                                                    onTap: _viewModel.isSubmitting
+                                                        ? null
+                                                        : () => _viewModel
+                                                            .setSelectedAiModelImage(
+                                                                item),
+                                                    child: AnimatedContainer(
+                                                      duration: const Duration(
+                                                        milliseconds: 150,
+                                                      ),
+                                                      width: 126,
+                                                      padding:
+                                                          const EdgeInsets.all(8),
+                                                      decoration: BoxDecoration(
+                                                        color: isSelected
+                                                            ? const Color(
+                                                                0xFFE1F5F2)
+                                                            : Colors.white,
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                                12),
+                                                        border: Border.all(
+                                                          color: isSelected
+                                                              ? const Color(
+                                                                  0xFF0C8A7B)
+                                                              : const Color(
+                                                                  0xFFD4DEEF),
+                                                          width: isSelected
+                                                              ? 1.5
+                                                              : 1,
+                                                        ),
+                                                      ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          ClipRRect(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(8),
+                                                            child: Image.network(
+                                                              item.imageUrl,
+                                                              width:
+                                                                  double.infinity,
+                                                              height: 88,
+                                                              fit: BoxFit.cover,
+                                                              errorBuilder:
+                                                                  (context, error,
+                                                                          stackTrace) =>
+                                                                      Container(
+                                                                height: 88,
+                                                                color: const Color(
+                                                                    0xFFF1F5F9),
+                                                                child: const Center(
+                                                                  child: Icon(Icons
+                                                                      .broken_image_outlined),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                            height: 8,
+                                                          ),
+                                                          Text(
+                                                            item.title,
+                                                            maxLines: 2,
+                                                            overflow: TextOverflow
+                                                                .ellipsis,
+                                                            style: GoogleFonts
+                                                                .plusJakartaSans(
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight.w600,
+                                                              color: const Color(
+                                                                  0xFF17355C),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  );
+                                                }).toList(growable: false),
+                                              ),
+                                            const SizedBox(height: 12),
+                                            if (_viewModel.selectedAiModelImageUrl ==
+                                                null)
+                                              Text(
+                                                'Select one model image above, then tap Generate Hover Image.',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 12,
+                                                  color: const Color(0xFF8A451A),
+                                                ),
+                                              )
+                                            else ...[
+                                              Text(
+                                                'Second Image Source (Model)',
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color:
+                                                      const Color(0xFF17355C),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  width: double.infinity,
+                                                  height: 220,
+                                                  color: const Color(0xFFF8FAFC),
+                                                  child: Image.network(
+                                                    _viewModel
+                                                        .selectedAiModelImageUrl!,
+                                                    fit: BoxFit.contain,
+                                                    errorBuilder: (
+                                                      context,
+                                                      error,
+                                                      stackTrace,
+                                                    ) => const Center(
+                                                      child: Icon(
+                                                        Icons.broken_image_outlined,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                            const SizedBox(height: 12),
+                                            FilledButton.icon(
+                                              onPressed: (_viewModel
+                                                          .isSubmitting ||
+                                                      _viewModel
+                                                          .isGeneratingAiHoverImage ||
+                                                      _viewModel
+                                                              .selectedAiModelImageUrl ==
+                                                          null)
+                                                  ? null
+                                                  : () async {
+                                                      final messenger =
+                                                          ScaffoldMessenger.of(
+                                                              context);
+                                                      final ok = await _viewModel
+                                                          .generateAiHoverImage();
+                                                      if (!mounted) {
+                                                        return;
+                                                      }
+                                                      if (!ok) {
+                                                        final message = _viewModel
+                                                                .errorMessage ??
+                                                            'Unable to generate hover image.';
+                                                        messenger.showSnackBar(
+                                                          SnackBar(
+                                                              content: Text(
+                                                                  message)),
+                                                        );
+                                                      }
+                                                    },
+                                              icon: _viewModel
+                                                      .isGeneratingAiHoverImage
+                                                  ? const SizedBox(
+                                                      width: 16,
+                                                      height: 16,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                      ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.auto_awesome),
+                                              label: Text(
+                                                _viewModel
+                                                        .isGeneratingAiHoverImage
+                                                    ? 'Generating Hover Image...'
+                                                    : 'Generate Hover Image',
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              'Hover image is generated by merging Normal upload + selected Model image.',
+                                              style: GoogleFonts.plusJakartaSans(
+                                                fontSize: 12,
+                                                color: const Color(0xFF4F627E),
+                                              ),
+                                            ),
+                                            if (_viewModel
+                                                    .selectedHoverImageBytes !=
+                                                null) ...[
+                                              const SizedBox(height: 12),
+                                              Text(
+                                                'Generated Hover Preview',
+                                                style:
+                                                    GoogleFonts.plusJakartaSans(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w700,
+                                                  color:
+                                                      const Color(0xFF17355C),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              ClipRRect(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                child: Container(
+                                                  width: double.infinity,
+                                                  height: 240,
+                                                  color: const Color(0xFFF8FAFC),
+                                                  child: Image.memory(
+                                                    _viewModel
+                                                        .selectedHoverImageBytes!,
+                                                    fit: BoxFit.contain,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                               const SizedBox(height: 16),
                               TextFormField(
                                 controller: _viewModel.descriptionController,

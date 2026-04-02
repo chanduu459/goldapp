@@ -1,0 +1,11 @@
+{
+  "model": "google/gemini-2.5-flash-image",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type":"text","text":"Generate a tiny red square image. Return as image output."}
+      ]
+    }
+  ]
+}
