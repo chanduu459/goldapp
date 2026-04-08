@@ -49,6 +49,7 @@ class _SignInViewState extends State<SignInView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -133,8 +134,8 @@ class _SignInViewState extends State<SignInView> {
                                   Text(
                                     'Welcome Back',
                                     textAlign: TextAlign.center,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 32,
+                                    style: theme.textTheme.headlineMedium?.copyWith(
+                                      fontSize: 34,
                                       fontWeight: FontWeight.w700,
                                       color: const Color(0xFF0C2343),
                                     ),
@@ -143,8 +144,8 @@ class _SignInViewState extends State<SignInView> {
                                   Text(
                                     'Sign in to manage your jewelry inventory and orders.',
                                     textAlign: TextAlign.center,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontSize: 15,
                                       color: const Color(0xFF5E6D83),
                                       height: 1.45,
                                     ),
@@ -227,14 +228,6 @@ class _SignInViewState extends State<SignInView> {
                                     onPressed: _viewModel.isSubmitting
                                         ? null
                                         : _handleSignIn,
-                                    style: FilledButton.styleFrom(
-                                      backgroundColor: const Color(0xFF0C8A7B),
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 15),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(14),
-                                      ),
-                                    ),
                                     child: _viewModel.isSubmitting
                                         ? const SizedBox(
                                             height: 20,

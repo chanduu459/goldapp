@@ -257,6 +257,7 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -350,14 +351,36 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                   if (_viewModel.errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.all(12),
-                      child: Text(
-                        _viewModel.errorMessage!,
-                        style: const TextStyle(color: Color(0xFF9F1D1D)),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEFEF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF2C2C2)),
+                        ),
+                        child: Text(
+                          _viewModel.errorMessage!,
+                          style: const TextStyle(color: Color(0xFF9F1D1D)),
+                        ),
                       ),
                     ),
                   Expanded(
                     child: _viewModel.products.isEmpty
-                        ? const Center(child: Text('No products found.'))
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 38,
+                                  color: theme.colorScheme.outline,
+                                ),
+                                const SizedBox(height: 10),
+                                const Text('No products found.'),
+                              ],
+                            ),
+                          )
                         : ListView.builder(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                             itemCount: _viewModel.products.length,

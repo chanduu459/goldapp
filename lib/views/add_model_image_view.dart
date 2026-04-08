@@ -330,35 +330,41 @@ class _AddModelImageViewState extends State<AddModelImageView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Add Model Image'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFFE6E7EB)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x140A2A43),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Create Model Image Entry',
-                        style: TextStyle(
-                          fontSize: 20,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: Color(0xFF021B44),
                         ),
@@ -643,12 +649,11 @@ class _ViewModelImagesViewState extends State<ViewModelImagesView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Added Model Images'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
         actions: [
           IconButton(
             onPressed: _isLoading ? null : _loadImages,
@@ -667,25 +672,45 @@ class _ViewModelImagesViewState extends State<ViewModelImagesView> {
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                       ? Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _errorMessage!,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(color: Color(0xFF9B1C1C)),
-                              ),
-                              const SizedBox(height: 10),
-                              FilledButton(
-                                onPressed: _loadImages,
-                                child: const Text('Retry'),
-                              ),
-                            ],
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 460),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFEFEF),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: const Color(0xFFF2C2C2)),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _errorMessage!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(color: Color(0xFF9B1C1C)),
+                                ),
+                                const SizedBox(height: 10),
+                                FilledButton(
+                                  onPressed: _loadImages,
+                                  child: const Text('Retry'),
+                                ),
+                              ],
+                            ),
                           ),
                         )
                       : _items.isEmpty
-                          ? const Center(
-                              child: Text('No model images added yet.'),
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.image_search_outlined,
+                                    size: 38,
+                                    color: theme.colorScheme.outline,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  const Text('No model images added yet.'),
+                                ],
+                              ),
                             )
                           : ListView.separated(
                               itemCount: _items.length,

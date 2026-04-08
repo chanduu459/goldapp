@@ -9,7 +9,8 @@ class AddCollectionView extends StatefulWidget {
 }
 
 class _AddCollectionViewState extends State<AddCollectionView> {
-  final _formKey = GlobalKey<FormState>();
+  final _collectionFormKey = GlobalKey<FormState>();
+  final _categoryFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _slugController = TextEditingController();
   final _subtitleController = TextEditingController();
@@ -17,10 +18,18 @@ class _AddCollectionViewState extends State<AddCollectionView> {
   final _imageUrlController = TextEditingController();
   final _bannerImageUrlController = TextEditingController();
   final _sortOrderController = TextEditingController(text: '0');
+  final _categoryNameController = TextEditingController();
+  final _categorySlugController = TextEditingController();
+  final _categoryDescriptionController = TextEditingController();
+  final _categoryImageUrlController = TextEditingController();
+  final _categorySortOrderController = TextEditingController(text: '0');
 
   bool _slugManuallyEdited = false;
+  bool _categorySlugManuallyEdited = false;
   bool _isActive = true;
+  bool _isCategoryActive = true;
   bool _isSaving = false;
+  bool _isSavingCategory = false;
 
   @override
   void dispose() {
@@ -31,6 +40,11 @@ class _AddCollectionViewState extends State<AddCollectionView> {
     _imageUrlController.dispose();
     _bannerImageUrlController.dispose();
     _sortOrderController.dispose();
+    _categoryNameController.dispose();
+    _categorySlugController.dispose();
+    _categoryDescriptionController.dispose();
+    _categoryImageUrlController.dispose();
+    _categorySortOrderController.dispose();
     super.dispose();
   }
 
@@ -45,7 +59,7 @@ class _AddCollectionViewState extends State<AddCollectionView> {
       return;
     }
 
-    final form = _formKey.currentState;
+    final form = _collectionFormKey.currentState;
     if (form == null || !form.validate()) {
       return;
     }
@@ -120,37 +134,123 @@ class _AddCollectionViewState extends State<AddCollectionView> {
     }
   }
 
+  Future<void> _saveCategory() async {
+    if (_isSavingCategory) {
+      return;
+    }
+
+    final form = _categoryFormKey.currentState;
+    if (form == null || !form.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isSavingCategory = true;
+    });
+
+    final messenger = ScaffoldMessenger.of(context);
+    final name = _categoryNameController.text.trim();
+    final slug = _categorySlugController.text.trim().toLowerCase();
+    final description = _categoryDescriptionController.text.trim();
+    final imageUrl = _categoryImageUrlController.text.trim();
+    final sortOrder = int.tryParse(_categorySortOrderController.text.trim()) ?? 0;
+
+    try {
+      final existingNameRows = await Supabase.instance.client
+          .from('categories')
+          .select('id')
+          .ilike('name', name)
+          .limit(1);
+
+      final existingSlugRows = await Supabase.instance.client
+          .from('categories')
+          .select('id')
+          .eq('slug', slug)
+          .limit(1);
+
+      if (existingNameRows.isNotEmpty || existingSlugRows.isNotEmpty) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Category already exists.')),
+        );
+        return;
+      }
+
+      await Supabase.instance.client.from('categories').insert({
+        'name': name,
+        'slug': slug,
+        'description': description.isEmpty ? null : description,
+        'image_url': imageUrl.isEmpty ? null : imageUrl,
+        'is_active': _isCategoryActive,
+        'sort_order': sortOrder,
+      });
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Category added successfully. It will appear in Add Product.'),
+        ),
+      );
+
+      _categoryNameController.clear();
+      _categorySlugController.clear();
+      _categoryDescriptionController.clear();
+      _categoryImageUrlController.clear();
+      _categorySortOrderController.text = '0';
+      _categorySlugManuallyEdited = false;
+      _isCategoryActive = true;
+    } on PostgrestException catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Unable to add category. ${e.message}')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Unable to add category. Please try again.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSavingCategory = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Add Collection'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text('Add Collection / Category'),
       ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 20),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
+              constraints: const BoxConstraints(maxWidth: 760),
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(color: const Color(0xFFE6E7EB)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x140A2A43),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
                 ),
                 child: Form(
-                  key: _formKey,
+                  key: _collectionFormKey,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Create Collection',
-                        style: TextStyle(
-                          fontSize: 20,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: Color(0xFF021B44),
                         ),
@@ -306,6 +406,161 @@ class _AddCollectionViewState extends State<AddCollectionView> {
                                 )
                               : const Icon(Icons.add),
                           label: Text(_isSaving ? 'Saving...' : 'Add Collection'),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      const Divider(height: 1),
+                      const SizedBox(height: 22),
+                      Text(
+                        'Create Category',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF021B44),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Add categories to public.categories. These will show in Add Product.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF5D6A83),
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Form(
+                        key: _categoryFormKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TextFormField(
+                              controller: _categoryNameController,
+                              textInputAction: TextInputAction.next,
+                              onChanged: (value) {
+                                if (_categorySlugManuallyEdited) {
+                                  return;
+                                }
+                                _categorySlugController.text = _slugify(value);
+                              },
+                              decoration: const InputDecoration(
+                                labelText: 'Category Name',
+                                hintText: 'Example: Necklaces',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                final text = value?.trim() ?? '';
+                                if (text.isEmpty) {
+                                  return 'Category name is required.';
+                                }
+                                if (text.length < 2) {
+                                  return 'Category name is too short.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _categorySlugController,
+                              textInputAction: TextInputAction.next,
+                              onChanged: (_) {
+                                if (!_categorySlugManuallyEdited) {
+                                  setState(() {
+                                    _categorySlugManuallyEdited = true;
+                                  });
+                                }
+                              },
+                              decoration: const InputDecoration(
+                                labelText: 'Category Slug',
+                                hintText: 'necklaces',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                final text = (value ?? '').trim().toLowerCase();
+                                if (text.isEmpty) {
+                                  return 'Slug is required.';
+                                }
+                                if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(text)) {
+                                  return 'Use lowercase letters, numbers and hyphens only.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _categoryDescriptionController,
+                              textInputAction: TextInputAction.newline,
+                              minLines: 2,
+                              maxLines: 4,
+                              decoration: const InputDecoration(
+                                labelText: 'Category Description (optional)',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _categoryImageUrlController,
+                              textInputAction: TextInputAction.next,
+                              keyboardType: TextInputType.url,
+                              decoration: const InputDecoration(
+                                labelText: 'Category Image URL (optional)',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _categorySortOrderController,
+                              textInputAction: TextInputAction.done,
+                              keyboardType: TextInputType.number,
+                              onFieldSubmitted: (_) => _saveCategory(),
+                              decoration: const InputDecoration(
+                                labelText: 'Category Sort Order',
+                                hintText: '0',
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                final text = (value ?? '').trim();
+                                if (text.isEmpty) {
+                                  return null;
+                                }
+                                if (int.tryParse(text) == null) {
+                                  return 'Sort order must be a number.';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 8),
+                            SwitchListTile.adaptive(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Active category'),
+                              subtitle: const Text('Controls if this category is available.'),
+                              value: _isCategoryActive,
+                              onChanged: _isSavingCategory
+                                  ? null
+                                  : (value) {
+                                      setState(() {
+                                        _isCategoryActive = value;
+                                      });
+                                    },
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.icon(
+                                onPressed: _isSavingCategory ? null : _saveCategory,
+                                icon: _isSavingCategory
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.category_outlined),
+                                label: Text(
+                                  _isSavingCategory ? 'Saving...' : 'Add Category',
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],

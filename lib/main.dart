@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'theme/app_theme.dart';
 import 'views/admin_dashboard_view.dart';
 import 'views/sign_in_view.dart';
 
@@ -26,11 +26,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Sign In',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0C8A7B)),
-        useMaterial3: true,
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
-      ),
+      theme: AppTheme.light,
       home: const _AuthGate(),
     );
   }

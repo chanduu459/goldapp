@@ -203,6 +203,7 @@ class _AddProductViewState extends State<AddProductView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -221,7 +222,7 @@ class _AddProductViewState extends State<AddProductView> {
                 child: Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(24),
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: theme.colorScheme.surface.withValues(alpha: 0.94),
                     border: Border.all(color: const Color(0xFFDCE4F0)),
                     boxShadow: const [
                       BoxShadow(
@@ -393,34 +394,8 @@ class _AddProductViewState extends State<AddProductView> {
                                           .copyWith(
                                         helperText: _viewModel.collections.isEmpty
                                             ? 'No collection added. Add your first collection below.'
-                                            : 'Select existing collection or type a new one below.',
+                                            : 'Select an existing collection.',
                                       ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 430, tablet: 360),
-                                    child: TextFormField(
-                                      controller: _viewModel.collectionController,
-                                      onChanged: _viewModel.setCollectionName,
-                                      decoration: _fieldDecoration('Add Collection (Text)')
-                                          .copyWith(
-                                        hintText:
-                                            'Type a collection name (for example: Bridal Gold)',
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller: _viewModel.basePriceController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                      decoration: _fieldDecoration('Base Price'),
-                                      validator: (value) => _viewModel
-                                          .validatePositiveNumber(
-                                              value, 'Base Price'),
                                     ),
                                   ),
                                   SizedBox(
@@ -436,19 +411,6 @@ class _AddProductViewState extends State<AddProductView> {
                                       validator: (value) => _viewModel
                                           .validateOptionalPositiveNumber(
                                               value, 'Original Price'),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller:
-                                          _viewModel.stockQuantityController,
-                                      keyboardType: TextInputType.number,
-                                      decoration:
-                                          _fieldDecoration('Stock Quantity'),
-                                      validator: (value) => _viewModel
-                                          .validateNonNegativeInt(
-                                              value, 'Stock Quantity'),
                                     ),
                                   ),
                                   SizedBox(
@@ -526,78 +488,38 @@ class _AddProductViewState extends State<AddProductView> {
                                   ),
                                   SizedBox(
                                     width: adaptiveWidth(desktop: 220, tablet: 200),
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue:
-                                          _viewModel.selectedDiamondType,
-                                      items: const [
-                                        DropdownMenuItem(
-                                          value: 'Natural',
-                                          child: Text('Natural'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Lab-Grown',
-                                          child: Text('Lab-Grown'),
-                                        ),
-                                      ],
-                                      onChanged: _viewModel.isSubmitting
+                                    child: FilterChip(
+                                      selected: _viewModel.hasDiamond,
+                                      label: const Text('Diamond'),
+                                      onSelected: _viewModel.isSubmitting
                                           ? null
-                                          : _viewModel
-                                              .setSelectedDiamondType,
-                                      decoration:
-                                          _fieldDecoration('Diamond Type'),
+                                          : _viewModel.setHasDiamond,
                                     ),
                                   ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller: _viewModel.ringSizeController,
-                                      decoration: _fieldDecoration('Ring Size'),
-                                      validator: (value) => _viewModel
-                                          .validateRequired(value, 'Ring Size'),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller:
-                                          _viewModel.caratWeightController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                        decimal: true,
+                                  if (_viewModel.hasDiamond)
+                                    SizedBox(
+                                      width: adaptiveWidth(desktop: 220, tablet: 200),
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue:
+                                            _viewModel.selectedDiamondType,
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: 'Natural',
+                                            child: Text('Natural'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'Lab-Grown',
+                                            child: Text('Lab-Grown'),
+                                          ),
+                                        ],
+                                        onChanged: _viewModel.isSubmitting
+                                            ? null
+                                            : _viewModel
+                                                .setSelectedDiamondType,
+                                        decoration:
+                                            _fieldDecoration('Diamond Type'),
                                       ),
-                                      decoration:
-                                          _fieldDecoration('Total Carat Weight'),
-                                      validator: (value) => _viewModel
-                                          .validatePositiveNumber(
-                                              value, 'Total Carat Weight'),
                                     ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 220, tablet: 200),
-                                    child: TextFormField(
-                                      controller:
-                                          _viewModel.stockNumberController,
-                                      decoration:
-                                          _fieldDecoration('Stock Number'),
-                                      validator: (value) => _viewModel
-                                          .validateRequired(
-                                              value, 'Stock Number'),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller: _viewModel.widthController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                      decoration: _fieldDecoration('Width (mm)'),
-                                      validator: (value) => _viewModel
-                                          .validatePositiveNumber(
-                                              value, 'Width'),
-                                    ),
-                                  ),
                                 ],
                               ),
                               const SizedBox(height: 16),
@@ -1054,6 +976,7 @@ class _AddProductViewState extends State<AddProductView> {
                               const SizedBox(height: 16),
                               TextFormField(
                                 controller: _viewModel.descriptionController,
+                                onChanged: _viewModel.onShortDescriptionChanged,
                                 maxLines: 3,
                                 decoration: _fieldDecoration('Short Description')
                                     .copyWith(alignLabelWithHint: true),
@@ -1063,6 +986,7 @@ class _AddProductViewState extends State<AddProductView> {
                               const SizedBox(height: 12),
                               TextFormField(
                                 controller: _viewModel.longDescriptionController,
+                                onChanged: _viewModel.onLongDescriptionChanged,
                                 maxLines: 4,
                                 decoration: _fieldDecoration('Long Description')
                                     .copyWith(alignLabelWithHint: true),
@@ -1099,15 +1023,6 @@ class _AddProductViewState extends State<AddProductView> {
                                   onPressed: _viewModel.isSubmitting
                                       ? null
                                       : _submit,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0C8A7B),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 15,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
                                   child: _viewModel.isSubmitting
                                       ? const SizedBox(
                                           width: 20,

@@ -42,12 +42,17 @@ enum ProductImageType { primary, hover }
 enum ProductImageInputMode { manual, ai }
 
 class AddProductViewModel extends ChangeNotifier {
+  AddProductViewModel() {
+    _attachAutoDescriptionListeners();
+    _refreshAutoDescriptions(notify: false);
+  }
+
   final formKey = GlobalKey<FormState>();
 
   final nameController = TextEditingController();
   final weightController = TextEditingController();
   final purityController = TextEditingController();
-  final basePriceController = TextEditingController();
+  final basePriceController = TextEditingController(text: '0');
   final originalPriceController = TextEditingController();
   final stockQuantityController = TextEditingController(text: '0');
   final makingChargeController = TextEditingController();
@@ -84,8 +89,246 @@ class AddProductViewModel extends ChangeNotifier {
   bool isEngravable = false;
   bool isActive = true;
   bool rhodiumFinish = false;
+  bool hasDiamond = false;
   String selectedMetalType = 'Gold';
   String selectedDiamondType = 'Natural';
+
+  bool _autoSyncShortDescription = true;
+  bool _autoSyncLongDescription = true;
+  String _lastAutoShortDescription = '';
+  String _lastAutoLongDescription = '';
+
+  void _attachAutoDescriptionListeners() {
+    final listenables = <TextEditingController>[
+      nameController,
+      weightController,
+      purityController,
+      basePriceController,
+      originalPriceController,
+      stockQuantityController,
+      makingChargeController,
+      ringSizeController,
+      caratWeightController,
+      stockNumberController,
+      widthController,
+      collectionController,
+    ];
+
+    for (final controller in listenables) {
+      controller.addListener(_refreshAutoDescriptions);
+    }
+  }
+
+  String _categoryName() {
+    final categoryId = selectedCategoryId;
+    if (categoryId == null) {
+      return 'Not selected';
+    }
+
+    final match = categories.where((item) => item.id == categoryId);
+    if (match.isEmpty) {
+      return 'Not selected';
+    }
+
+    return match.first.name;
+  }
+
+  String _collectionName() {
+    final typed = collectionController.text.trim();
+    if (typed.isNotEmpty) {
+      return typed;
+    }
+
+    if (selectedCollectionId == null) {
+      return 'No collection';
+    }
+
+    final match = collections.where((item) => item.id == selectedCollectionId);
+    if (match.isEmpty) {
+      return 'No collection';
+    }
+
+    return match.first.name;
+  }
+
+  String _buildAutoShortDescription() {
+    final name = nameController.text.trim();
+    final purity = purityController.text.trim();
+    final weight = weightController.text.trim();
+    final ringSize = ringSizeController.text.trim();
+
+    if (name.isEmpty && purity.isEmpty && weight.isEmpty && ringSize.isEmpty) {
+      return 'Product details will be generated from the form fields.';
+    }
+
+    final parts = <String>[];
+    if (name.isNotEmpty) {
+      parts.add(name);
+    }
+    if (purity.isNotEmpty) {
+      parts.add('${purity}K $selectedMetalType');
+    } else {
+      parts.add(selectedMetalType);
+    }
+    if (weight.isNotEmpty) {
+      parts.add('${weight}g');
+    }
+    if (ringSize.isNotEmpty) {
+      parts.add('Ring Size $ringSize');
+    }
+
+    return parts.join(' | ');
+  }
+
+  String _buildAutoLongDescription(String shortDescription) {
+    final lines = <String>[shortDescription];
+
+    final categoryName = _categoryName();
+    if (categoryName != 'Not selected') {
+      lines.add('Category: $categoryName');
+    }
+
+    final collectionName = _collectionName();
+    if (collectionName != 'No collection') {
+      lines.add('Collection: $collectionName');
+    }
+
+    final basePrice = basePriceController.text.trim();
+    if (basePrice.isNotEmpty) {
+      lines.add('Base Price: $basePrice');
+    }
+
+    final originalPrice = originalPriceController.text.trim();
+    if (originalPrice.isNotEmpty) {
+      lines.add('Original Price: $originalPrice');
+    }
+
+    final stockQuantity = stockQuantityController.text.trim();
+    if (stockQuantity.isNotEmpty && stockQuantity != '0') {
+      lines.add('Stock Quantity: $stockQuantity');
+    }
+
+    final makingCharge = makingChargeController.text.trim();
+    if (makingCharge.isNotEmpty) {
+      lines.add('Making Charge: $makingCharge');
+    }
+
+    final weight = weightController.text.trim();
+    if (weight.isNotEmpty) {
+      lines.add('Weight: ${weight}g');
+    }
+
+    final purity = purityController.text.trim();
+    if (purity.isNotEmpty) {
+      lines.add('Purity: ${purity}K');
+    }
+
+    if (hasDiamond) {
+      lines.add('Diamond Type: $selectedDiamondType');
+    }
+
+    final ringSize = ringSizeController.text.trim();
+    if (ringSize.isNotEmpty) {
+      lines.add('Ring Size: $ringSize');
+    }
+
+    final caratWeight = caratWeightController.text.trim();
+    if (caratWeight.isNotEmpty) {
+      lines.add('Total Carat Weight: $caratWeight');
+    }
+
+    final stockNumber = stockNumberController.text.trim();
+    if (stockNumber.isNotEmpty) {
+      lines.add('Stock Number: $stockNumber');
+    }
+
+    final width = widthController.text.trim();
+    if (width.isNotEmpty) {
+      lines.add('Width: ${width}mm');
+    }
+
+    if (rhodiumFinish) {
+      lines.add('Rhodium Finish: Yes');
+    }
+
+    final flags = <String>[];
+    if (isNew) {
+      flags.add('New Arrival');
+    }
+    if (isBestSeller) {
+      flags.add('Best Seller');
+    }
+    if (isEngravable) {
+      flags.add('Engravable');
+    }
+    if (!isActive) {
+      flags.add('Inactive');
+    }
+    if (flags.isNotEmpty) {
+      lines.add('Flags: ${flags.join(', ')}');
+    }
+
+    return lines.join('\n');
+  }
+
+  void _setControllerText(TextEditingController controller, String value) {
+    if (controller.text == value) {
+      return;
+    }
+    controller.value = controller.value.copyWith(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+      composing: TextRange.empty,
+    );
+  }
+
+  void _refreshAutoDescriptions({bool notify = true}) {
+    final shortDescription = _buildAutoShortDescription();
+    final longDescription = _buildAutoLongDescription(shortDescription);
+
+    final currentShort = descriptionController.text.trim();
+    final currentLong = longDescriptionController.text.trim();
+
+    if (_autoSyncShortDescription ||
+        currentShort.isEmpty ||
+        currentShort == _lastAutoShortDescription.trim()) {
+      _setControllerText(descriptionController, shortDescription);
+      _lastAutoShortDescription = shortDescription;
+    }
+
+    if (_autoSyncLongDescription ||
+        currentLong.isEmpty ||
+        currentLong == _lastAutoLongDescription.trim()) {
+      _setControllerText(longDescriptionController, longDescription);
+      _lastAutoLongDescription = longDescription;
+    }
+
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  void onShortDescriptionChanged(String value) {
+    final trimmed = value.trim();
+    _autoSyncShortDescription =
+        trimmed.isEmpty || trimmed == _lastAutoShortDescription.trim();
+    if (_autoSyncShortDescription) {
+      _refreshAutoDescriptions();
+      return;
+    }
+    notifyListeners();
+  }
+
+  void onLongDescriptionChanged(String value) {
+    final trimmed = value.trim();
+    _autoSyncLongDescription =
+        trimmed.isEmpty || trimmed == _lastAutoLongDescription.trim();
+    if (_autoSyncLongDescription) {
+      _refreshAutoDescriptions();
+      return;
+    }
+    notifyListeners();
+  }
 
   Future<void> loadReferenceData() async {
     isLoadingReferenceData = true;
@@ -133,6 +376,7 @@ class AddProductViewModel extends ChangeNotifier {
     }
 
     isLoadingReferenceData = false;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
@@ -142,6 +386,7 @@ class AddProductViewModel extends ChangeNotifier {
     selectedAiModelImageUrl = null;
     selectedHoverImageBytes = null;
     selectedHoverImageName = null;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
     _loadModelImagesForCategory(value);
   }
@@ -154,6 +399,7 @@ class AddProductViewModel extends ChangeNotifier {
         collectionController.text = match.first.name;
       }
     }
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
@@ -162,6 +408,7 @@ class AddProductViewModel extends ChangeNotifier {
 
     final normalized = value.trim().toLowerCase();
     if (normalized.isEmpty) {
+      _refreshAutoDescriptions(notify: false);
       notifyListeners();
       return;
     }
@@ -174,6 +421,7 @@ class AddProductViewModel extends ChangeNotifier {
       selectedCollectionId = existing.first.id;
     }
 
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
@@ -211,26 +459,37 @@ class AddProductViewModel extends ChangeNotifier {
 
   void setIsNew(bool value) {
     isNew = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
   void setIsBestSeller(bool value) {
     isBestSeller = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
   void setIsEngravable(bool value) {
     isEngravable = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
   void setIsActive(bool value) {
     isActive = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
   void setRhodiumFinish(bool value) {
     rhodiumFinish = value;
+    _refreshAutoDescriptions(notify: false);
+    notifyListeners();
+  }
+
+  void setHasDiamond(bool value) {
+    hasDiamond = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
@@ -239,6 +498,7 @@ class AddProductViewModel extends ChangeNotifier {
       return;
     }
     selectedMetalType = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
@@ -247,6 +507,7 @@ class AddProductViewModel extends ChangeNotifier {
       return;
     }
     selectedDiamondType = value;
+    _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
 
@@ -794,6 +1055,11 @@ class AddProductViewModel extends ChangeNotifier {
       throw StateError('Please select a category.');
     }
 
+    final ringSizeValue = ringSizeController.text.trim();
+    final caratWeightValue = caratWeightController.text.trim();
+    final stockNumberValue = stockNumberController.text.trim();
+    final widthValue = widthController.text.trim();
+
     return GoldOrnamentProduct(
       productId: -1,
       name: nameController.text.trim(),
@@ -801,11 +1067,11 @@ class AddProductViewModel extends ChangeNotifier {
       collectionId: selectedCollectionId,
       weightInGrams: double.parse(weightController.text.trim()),
       purityKarat: int.parse(purityController.text.trim()),
-      basePrice: double.parse(basePriceController.text.trim()),
+      basePrice: double.tryParse(basePriceController.text.trim()) ?? 0,
       originalPrice: originalPriceController.text.trim().isEmpty
           ? null
           : double.parse(originalPriceController.text.trim()),
-      stockQuantity: int.parse(stockQuantityController.text.trim()),
+      stockQuantity: int.tryParse(stockQuantityController.text.trim()) ?? 0,
       makingCharge: double.parse(makingChargeController.text.trim()),
       imageUrl: '',
       hoverImageUrl: '',
@@ -819,11 +1085,11 @@ class AddProductViewModel extends ChangeNotifier {
         metaDescription: null,
         metaKeywords: null,
         metalType: selectedMetalType,
-        ringSize: ringSizeController.text.trim(),
-        caratWeight: double.parse(caratWeightController.text.trim()),
-        diamondType: selectedDiamondType,
-        stockNumber: stockNumberController.text.trim(),
-        widthMm: double.parse(widthController.text.trim()),
+        ringSize: ringSizeValue.isEmpty ? 'N/A' : ringSizeValue,
+        caratWeight: double.tryParse(caratWeightValue) ?? 0,
+        diamondType: hasDiamond ? selectedDiamondType : 'None',
+        stockNumber: stockNumberValue.isEmpty ? 'N/A' : stockNumberValue,
+        widthMm: double.tryParse(widthValue) ?? 0,
         rhodiumFinish: rhodiumFinish,
     );
   }
@@ -941,8 +1207,8 @@ class AddProductViewModel extends ChangeNotifier {
         uploadedHoverImageUrl = hoverImageUrl;
       }
 
-      final formattedLongDescription =
-          '${draft.longDescription.isEmpty ? draft.description : draft.longDescription}\nWeight: ${draft.weightInGrams}g, Purity: ${draft.purityKarat}K, Making Charge: ${draft.makingCharge}, Metal: ${draft.metalType}, Ring Size: ${draft.ringSize}, Carat: ${draft.caratWeight}, Width: ${draft.widthMm}mm, Rhodium Finish: ${draft.rhodiumFinish ? 'Yes' : 'No'}, Stock Number: ${draft.stockNumber}, Diamond Type: ${draft.diamondType}';
+        final formattedLongDescription =
+          draft.longDescription.isEmpty ? draft.description : draft.longDescription;
 
       final inserted = await Supabase.instance.client
           .from('products')
@@ -984,7 +1250,7 @@ class AddProductViewModel extends ChangeNotifier {
         'is_available': true,
       });
 
-      await Supabase.instance.client.from('product_options').insert([
+      final productOptions = <Map<String, dynamic>>[
         {
           'product_id': productId,
           'option_type': 'metal',
@@ -993,38 +1259,27 @@ class AddProductViewModel extends ChangeNotifier {
           'is_available': true,
           'sort_order': 1,
         },
-        {
+      ];
+
+      if (hasDiamond) {
+        productOptions.add({
           'product_id': productId,
           'option_type': 'diamond_type',
           'option_name': 'Diamond Type',
           'option_value': draft.diamondType,
           'is_available': true,
           'sort_order': 2,
-        },
-        {
-          'product_id': productId,
-          'option_type': 'carat',
-          'option_name': 'Total Carat Weight',
-          'option_value': draft.caratWeight.toString(),
-          'is_available': true,
-          'sort_order': 3,
-        },
-        {
-          'product_id': productId,
-          'option_type': 'size',
-          'option_name': 'Ring Size',
-          'option_value': draft.ringSize,
-          'is_available': true,
-          'sort_order': 4,
-        },
-      ]);
+        });
+      }
+
+      await Supabase.instance.client.from('product_options').insert(productOptions);
 
       await Supabase.instance.client.from('product_variants').insert({
         'product_id': productId,
         'sku': '$sku-V1',
         'metal': draft.metalType,
         'carat': draft.caratWeight,
-        'diamond_type': draft.diamondType,
+        'diamond_type': hasDiamond ? draft.diamondType : 'None',
         'ring_size': draft.ringSize,
         'stock_quantity': draft.stockQuantity,
         'barcode': draft.stockNumber,
