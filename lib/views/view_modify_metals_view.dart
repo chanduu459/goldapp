@@ -2,47 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ViewModifyCategoriesView extends StatefulWidget {
-  const ViewModifyCategoriesView({super.key});
+class ViewModifyMetalsView extends StatefulWidget {
+  const ViewModifyMetalsView({super.key});
 
   @override
-  State<ViewModifyCategoriesView> createState() =>
-      _ViewModifyCategoriesViewState();
+  State<ViewModifyMetalsView> createState() => _ViewModifyMetalsViewState();
 }
 
-class _CategoryItem {
-  const _CategoryItem({
+class _MetalItem {
+  const _MetalItem({
     required this.id,
     required this.name,
-    required this.slug,
-    this.description,
-    this.imageUrl,
-    required this.isActive,
-    required this.sortOrder,
+    required this.unit,
   });
 
-  final int id;
+  final String id;
   final String name;
-  final String slug;
-  final String? description;
-  final String? imageUrl;
-  final bool isActive;
-  final int sortOrder;
+  final String unit;
 }
 
-class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
+class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
   bool _isLoading = false;
   bool _isSaving = false;
   String? _errorMessage;
-  List<_CategoryItem> _categories = const [];
+  List<_MetalItem> _metals = const [];
 
   @override
   void initState() {
     super.initState();
-    _loadCategories();
+    _loadMetals();
   }
 
-  Future<void> _loadCategories() async {
+  Future<void> _loadMetals() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -50,20 +41,15 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
 
     try {
       final rows = await Supabase.instance.client
-          .from('categories')
-          .select('id, name, slug, description, image_url, is_active, sort_order')
-          .order('sort_order', ascending: true)
+          .from('metals')
+          .select('id, name, unit')
           .order('name', ascending: true);
 
       final mapped = (rows as List<dynamic>).map((row) {
-        return _CategoryItem(
-          id: row['id'] as int,
+        return _MetalItem(
+          id: row['id'] as String,
           name: (row['name'] as String? ?? '').trim(),
-          slug: (row['slug'] as String? ?? '').trim(),
-          description: (row['description'] as String?)?.trim(),
-          imageUrl: (row['image_url'] as String?)?.trim(),
-          isActive: row['is_active'] as bool? ?? true,
-          sortOrder: row['sort_order'] as int? ?? 0,
+          unit: (row['unit'] as String? ?? '').trim(),
         );
       }).toList(growable: false);
 
@@ -72,7 +58,7 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
       }
 
       setState(() {
-        _categories = mapped;
+        _metals = mapped;
       });
     } on PostgrestException catch (e) {
       if (!mounted) {
@@ -86,7 +72,7 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
         return;
       }
       setState(() {
-        _errorMessage = 'Unable to load categories.';
+        _errorMessage = 'Unable to load metals.';
       });
     } finally {
       if (mounted) {
@@ -97,26 +83,19 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
     }
   }
 
-  Future<void> _openEditDialog(_CategoryItem item) async {
+  Future<void> _openEditDialog(_MetalItem item) async {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: item.name);
-    final slugController = TextEditingController(text: item.slug);
-    final descriptionController = TextEditingController(
-      text: item.description ?? '',
-    );
-    final imageUrlController = TextEditingController(text: item.imageUrl ?? '');
-    final sortOrderController = TextEditingController(
-      text: item.sortOrder.toString(),
-    );
-    var isActive = item.isActive;
+    final unitController = TextEditingController(text: item.unit);
+    var isUpdatingDialog = false;
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
+          builder: (dialogContext, setStateDialog) {
             return AlertDialog(
-              title: const Text('Update Category'),
+              title: const Text('Update Metal'),
               content: SizedBox(
                 width: MediaQuery.sizeOf(dialogContext).width < 500
                     ? MediaQuery.sizeOf(dialogContext).width - 48
@@ -130,72 +109,26 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
                         TextFormField(
                           controller: nameController,
                           decoration: const InputDecoration(
-                            labelText: 'Category Name',
+                            labelText: 'Metal Name',
                           ),
                           validator: (value) {
                             if ((value ?? '').trim().isEmpty) {
-                              return 'Category Name is required';
+                              return 'Metal Name is required';
                             }
                             return null;
                           },
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
-                          controller: slugController,
+                          controller: unitController,
                           decoration: const InputDecoration(
-                            labelText: 'Slug',
+                            labelText: 'Unit',
                           ),
                           validator: (value) {
-                            final text = (value ?? '').trim().toLowerCase();
-                            if (text.isEmpty) {
-                              return 'Slug is required';
-                            }
-                            if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(text)) {
-                              return 'Use lowercase letters, numbers and hyphens only.';
+                            if ((value ?? '').trim().isEmpty) {
+                              return 'Unit is required';
                             }
                             return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: descriptionController,
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: 'Description (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: imageUrlController,
-                          keyboardType: TextInputType.url,
-                          decoration: const InputDecoration(
-                            labelText: 'Image URL (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: sortOrderController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Sort Order',
-                          ),
-                          validator: (value) {
-                            if (int.tryParse((value ?? '').trim()) == null) {
-                              return 'Enter a valid number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Active Category'),
-                          value: isActive,
-                          onChanged: (value) {
-                            setDialogState(() {
-                              isActive = value;
-                            });
                           },
                         ),
                       ],
@@ -205,36 +138,64 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  onPressed: isUpdatingDialog
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () async {
+                  onPressed: isUpdatingDialog
+                      ? null
+                      : () async {
                     final isValid = formKey.currentState?.validate() ?? false;
                     if (!isValid) {
                       return;
                     }
 
-                    final sortOrder = int.parse(sortOrderController.text.trim());
-                    final success = await _updateCategory(
-                      id: item.id,
-                      name: nameController.text,
-                      slug: slugController.text,
-                      description: descriptionController.text,
-                      imageUrl: imageUrlController.text,
-                      isActive: isActive,
-                      sortOrder: sortOrder,
-                    );
+                    setStateDialog(() {
+                      isUpdatingDialog = true;
+                    });
 
-                    if (!dialogContext.mounted) {
-                      return;
-                    }
+                    try {
+                      await Supabase.instance.client.from('metals').update({
+                        'name': nameController.text.trim(),
+                        'unit': unitController.text.trim(),
+                      }).eq('id', item.id);
 
-                    if (success) {
+                      if (!dialogContext.mounted) {
+                        return;
+                      }
+
                       Navigator.of(dialogContext).pop(true);
+                    } on PostgrestException catch (e) {
+                      if (!dialogContext.mounted) {
+                        return;
+                      }
+                      setStateDialog(() {
+                        isUpdatingDialog = false;
+                      });
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        SnackBar(content: Text(e.message)),
+                      );
+                    } catch (_) {
+                      if (!dialogContext.mounted) {
+                        return;
+                      }
+                      setStateDialog(() {
+                        isUpdatingDialog = false;
+                      });
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(content: Text('Unable to update metal.')),
+                      );
                     }
                   },
-                  child: const Text('Update'),
+                  child: isUpdatingDialog
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Update'),
                 ),
               ],
             );
@@ -243,91 +204,31 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
       },
     );
 
+    await WidgetsBinding.instance.endOfFrame;
+
     nameController.dispose();
-    slugController.dispose();
-    descriptionController.dispose();
-    imageUrlController.dispose();
-    sortOrderController.dispose();
+    unitController.dispose();
 
     if (!mounted || saved != true) {
       return;
     }
 
-    await _loadCategories();
+    await _loadMetals();
     if (!mounted) {
       return;
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Category updated successfully')),
+      const SnackBar(content: Text('Updated successfully')),
     );
   }
 
-  Future<bool> _updateCategory({
-    required int id,
-    required String name,
-    required String slug,
-    required String description,
-    required String imageUrl,
-    required bool isActive,
-    required int sortOrder,
-  }) async {
-    if (_isSaving) {
-      return false;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await Supabase.instance.client.from('categories').update({
-        'name': name.trim(),
-        'slug': slug.trim().toLowerCase(),
-        'description': description.trim().isEmpty ? null : description.trim(),
-        'image_url': imageUrl.trim().isEmpty ? null : imageUrl.trim(),
-        'is_active': isActive,
-        'sort_order': sortOrder,
-      }).eq('id', id);
-
-      return true;
-    } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.message;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
-      return false;
-    } catch (_) {
-      if (mounted) {
-        const message = 'Unable to update category.';
-        setState(() {
-          _errorMessage = message;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(message)),
-        );
-      }
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _confirmDeleteCategory(_CategoryItem item) async {
+  Future<void> _confirmDeleteMetal(_MetalItem item) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Delete Category'),
+          title: const Text('Delete Metal'),
           content: Text(
             'Are you sure you want to delete "${item.name}"? This action cannot be undone.',
           ),
@@ -358,16 +259,16 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
     });
 
     try {
-      await Supabase.instance.client.from('categories').delete().eq('id', item.id);
+      await Supabase.instance.client.from('metals').delete().eq('id', item.id);
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Category deleted successfully')),
+        const SnackBar(content: Text('Metal deleted successfully')),
       );
-      await _loadCategories();
+      await _loadMetals();
     } on PostgrestException catch (e) {
       if (!mounted) {
         return;
@@ -382,7 +283,7 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
       if (!mounted) {
         return;
       }
-      const message = 'Unable to delete category.';
+      const message = 'Unable to delete metal.';
       setState(() {
         _errorMessage = message;
       });
@@ -424,7 +325,7 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'View / Modify Categories',
+                        'View / Update Metal',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.plusJakartaSans(
@@ -435,8 +336,8 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
                       ),
                     ),
                     IconButton(
-                      onPressed: _loadCategories,
-                      tooltip: 'Refresh categories',
+                      onPressed: _loadMetals,
+                      tooltip: 'Refresh metals',
                       icon: const Icon(Icons.refresh),
                     ),
                   ],
@@ -470,27 +371,27 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
                           child: CircularProgressIndicator(strokeWidth: 2.4),
                         ),
                       )
-                    : _categories.isEmpty
+                    : _metals.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              Icons.category_outlined,
+                              Icons.hardware_outlined,
                               size: 38,
                               color: theme.colorScheme.outline,
                             ),
                             const SizedBox(height: 10),
-                            const Text('No categories found.'),
+                            const Text('No metals found.'),
                           ],
                         ),
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                        itemCount: _categories.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemCount: _metals.length,
+                      separatorBuilder: (_, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
-                          final item = _categories[index];
+                          final item = _metals[index];
                           return Card(
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -502,14 +403,11 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
                                   const EdgeInsets.fromLTRB(16, 10, 12, 10),
                               title: Text(
                                 item.name,
-                                style:
-                                    const TextStyle(fontWeight: FontWeight.w700),
+                                style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 6),
-                                child: Text(
-                                  'Slug: ${item.slug}${item.description == null || item.description!.isEmpty ? '' : '\n${item.description}'}',
-                                ),
+                                child: Text('Unit: ${item.unit}'),
                               ),
                               trailing: Wrap(
                                 spacing: 4,
@@ -525,7 +423,7 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
                                     tooltip: 'Delete',
                                     onPressed: _isSaving
                                         ? null
-                                        : () => _confirmDeleteCategory(item),
+                                        : () => _confirmDeleteMetal(item),
                                     icon: const Icon(
                                       Icons.delete_outline,
                                       color: Color(0xFFB91C1C),

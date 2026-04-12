@@ -28,12 +28,9 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
   }
 
   Future<void> _openEditDialog(ManageProduct product) async {
-    final rootNavigator = Navigator.of(context);
-    final rootMessenger = ScaffoldMessenger.of(context);
-
     final nameController = TextEditingController(text: product.name);
     final priceController = TextEditingController(
-      text: product.basePrice.toStringAsFixed(2),
+      text: product.originalPrice.toStringAsFixed(2),
     );
     final descriptionController = TextEditingController(
       text: product.description,
@@ -41,6 +38,7 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
     final formKey = GlobalKey<FormState>();
     int selectedCategoryId = product.categoryId;
     bool isActive = product.isActive;
+    bool isUpdatingDialog = false;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -100,14 +98,14 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                             decimal: true,
                           ),
                           decoration: const InputDecoration(
-                            labelText: 'Base Price',
+                            labelText: 'Price',
                           ),
                           validator: (value) {
                             final parsed = double.tryParse(
                               (value ?? '').trim(),
                             );
                             if (parsed == null || parsed <= 0) {
-                              return 'Enter a valid Base Price';
+                              return 'Enter a valid Original Price';
                             }
                             return null;
                           },
@@ -144,11 +142,15 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  onPressed: isUpdatingDialog
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(false),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () async {
+                  onPressed: isUpdatingDialog
+                      ? null
+                      : () async {
                     final isValid = formKey.currentState?.validate() ?? false;
                     if (!isValid) {
                       return;
@@ -157,13 +159,18 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                       priceController.text.trim(),
                     );
 
+                    setStateDialog(() {
+                      isUpdatingDialog = true;
+                    });
+
                     final success = await _viewModel.updateProduct(
                       productId: product.id,
                       name: nameController.text,
                       categoryId: selectedCategoryId,
-                      basePrice: parsedPrice,
+                      originalPrice: parsedPrice,
                       description: descriptionController.text,
                       isActive: isActive,
+                      notifyUi: false,
                     );
 
                     if (!dialogContext.mounted) {
@@ -171,16 +178,25 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                     }
 
                     if (success) {
-                      rootNavigator.pop(true);
+                      Navigator.of(dialogContext).pop(true);
                     } else {
+                      setStateDialog(() {
+                        isUpdatingDialog = false;
+                      });
                       final message =
                           _viewModel.errorMessage ?? 'Update failed';
-                      rootMessenger.showSnackBar(
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
                         SnackBar(content: Text(message)),
                       );
                     }
                   },
-                  child: const Text('Update'),
+                  child: isUpdatingDialog
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Update'),
                 ),
               ],
             );
@@ -188,6 +204,10 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
         );
       },
     );
+
+    // Let dialog route teardown complete before touching controllers or
+    // notifying parent listeners via loadData.
+    await WidgetsBinding.instance.endOfFrame;
 
     nameController.dispose();
     priceController.dispose();
@@ -202,7 +222,7 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
       return;
     }
 
-    rootMessenger.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Product updated successfully')),
     );
   }
@@ -366,7 +386,15 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                       ),
                     ),
                   Expanded(
-                    child: _viewModel.products.isEmpty
+                    child: _viewModel.isLoading
+                        ? const Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(strokeWidth: 2.4),
+                            ),
+                          )
+                        : _viewModel.products.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -427,7 +455,7 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Category: ${product.categoryName} | Price: ${product.basePrice.toStringAsFixed(2)}',
+                                          'Category: ${product.categoryName} | Price: ${product.originalPrice.toStringAsFixed(2)}',
                                           maxLines: isNarrow ? 3 : 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),

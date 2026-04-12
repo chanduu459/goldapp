@@ -37,6 +37,18 @@ class ModelImageOption {
   final int categoryId;
 }
 
+class MetalTypeOption {
+  const MetalTypeOption({
+    required this.id,
+    required this.name,
+    required this.unit,
+  });
+
+  final String id;
+  final String name;
+  final String unit;
+}
+
 enum ProductImageType { primary, hover }
 
 enum ProductImageInputMode { manual, ai }
@@ -77,6 +89,8 @@ class AddProductViewModel extends ChangeNotifier {
   List<CategoryOption> categories = const [];
   List<CollectionOption> collections = const [];
   List<ModelImageOption> aiModelImages = const [];
+  List<MetalTypeOption> metalTypes = const [];
+  Map<String, double> _metalPriceByMetalId = const {};
   int? selectedCategoryId;
   int? selectedCollectionId;
   int? selectedAiModelImageId;
@@ -117,6 +131,47 @@ class AddProductViewModel extends ChangeNotifier {
     for (final controller in listenables) {
       controller.addListener(_refreshAutoDescriptions);
     }
+
+    // Keep original price in sync with selected metal and entered weight.
+    weightController.addListener(_autoFillOriginalPriceFromWeight);
+  }
+
+  String? _selectedMetalId() {
+    for (final metal in metalTypes) {
+      if (metal.name == selectedMetalType) {
+        return metal.id;
+      }
+    }
+    return null;
+  }
+
+  void _autoFillOriginalPriceFromWeight() {
+    final weightText = weightController.text.trim();
+    if (weightText.isEmpty) {
+      _setControllerText(originalPriceController, '');
+      return;
+    }
+
+    final weightInGrams = double.tryParse(weightText);
+    if (weightInGrams == null || weightInGrams <= 0) {
+      _setControllerText(originalPriceController, '');
+      return;
+    }
+
+    final metalId = _selectedMetalId();
+    if (metalId == null) {
+      _setControllerText(originalPriceController, '');
+      return;
+    }
+
+    final unitPrice = _metalPriceByMetalId[metalId];
+    if (unitPrice == null || unitPrice <= 0) {
+      _setControllerText(originalPriceController, '');
+      return;
+    }
+
+    final calculated = (weightInGrams * unitPrice).toStringAsFixed(2);
+    _setControllerText(originalPriceController, calculated);
   }
 
   String _categoryName() {
@@ -362,6 +417,48 @@ class AddProductViewModel extends ChangeNotifier {
               ))
           .toList(growable: false);
 
+      final metalRows = await Supabase.instance.client
+          .from('metals')
+          .select('id, name, unit')
+          .order('name', ascending: true);
+
+      metalTypes = (metalRows as List<dynamic>)
+          .map((row) => MetalTypeOption(
+                id: row['id'] as String,
+                name: ((row['name'] as String?) ?? '').trim(),
+                unit: ((row['unit'] as String?) ?? '').trim(),
+              ))
+          .where((item) => item.name.isNotEmpty)
+          .toList(growable: false);
+
+      final metalPriceRows = await Supabase.instance.client
+          .from('metal_prices')
+          .select('metal_id, price, price_date, created_at')
+          .order('price_date', ascending: false)
+          .order('created_at', ascending: false);
+
+      final latestPriceByMetalId = <String, double>{};
+      for (final row in (metalPriceRows as List<dynamic>)) {
+        final metalId = row['metal_id'] as String?;
+        final price = (row['price'] as num?)?.toDouble();
+        if (metalId == null || price == null || price <= 0) {
+          continue;
+        }
+        latestPriceByMetalId.putIfAbsent(metalId, () => price);
+      }
+      _metalPriceByMetalId = latestPriceByMetalId;
+
+      if (metalTypes.isNotEmpty) {
+        final hasCurrentMetal = metalTypes.any(
+          (item) => item.name == selectedMetalType,
+        );
+        if (!hasCurrentMetal) {
+          selectedMetalType = metalTypes.first.name;
+        }
+      }
+
+      _autoFillOriginalPriceFromWeight();
+
       if (categories.isNotEmpty) {
         selectedCategoryId ??= categories.first.id;
       }
@@ -370,6 +467,8 @@ class AddProductViewModel extends ChangeNotifier {
 
       if (categories.isEmpty) {
         errorMessage = 'No categories found. Create categories first.';
+      } else if (metalTypes.isEmpty) {
+        errorMessage = 'No metals found. Add metals first.';
       }
     } catch (_) {
       errorMessage = 'Unable to load categories/collections.';
@@ -498,6 +597,7 @@ class AddProductViewModel extends ChangeNotifier {
       return;
     }
     selectedMetalType = value;
+    _autoFillOriginalPriceFromWeight();
     _refreshAutoDescriptions(notify: false);
     notifyListeners();
   }
@@ -656,24 +756,45 @@ class AddProductViewModel extends ChangeNotifier {
   }
 
   Uint8List? _decodeGeneratedImage(String value) {
-    if (value.isEmpty) {
+    final input = value.trim();
+    if (input.isEmpty) {
       return null;
     }
 
-    final dataUrlPattern = RegExp(r'^data:image\/[^;]+;base64,(.+)$');
-    final dataUrlMatch = dataUrlPattern.firstMatch(value);
+    final dataUrlPattern = RegExp(r'data:image\/[^;]+;base64,([A-Za-z0-9+/=\n\r]+)');
+    final dataUrlMatch = dataUrlPattern.firstMatch(input);
     if (dataUrlMatch != null) {
-      return base64Decode(dataUrlMatch.group(1)!);
+      try {
+        return base64Decode(dataUrlMatch.group(1)!.replaceAll(RegExp(r'\s+'), ''));
+      } catch (_) {
+        return null;
+      }
     }
 
     try {
-      return base64Decode(value);
+      final compact = input.replaceAll(RegExp(r'\s+'), '');
+      if (compact.length < 100) {
+        return null;
+      }
+      return base64Decode(compact);
     } catch (_) {
       return null;
     }
   }
 
-  Uint8List? _extractGeneratedBytesFromOpenRouter(dynamic decoded) {
+  String? _extractHttpImageUrl(String text) {
+    final pattern = RegExp(
+      r'https?:\/\/[^\s\)\]]+\.(?:png|jpg|jpeg|webp)(?:\?[^\s\)\]]*)?',
+      caseSensitive: false,
+    );
+    final match = pattern.firstMatch(text);
+    if (match == null) {
+      return null;
+    }
+    return match.group(0);
+  }
+
+  Future<Uint8List?> _extractGeneratedBytesFromOpenRouter(dynamic decoded) async {
     if (decoded is! Map<String, dynamic>) {
       return null;
     }
@@ -693,35 +814,114 @@ class AddProductViewModel extends ChangeNotifier {
       return null;
     }
 
-    final content = message['content'];
-    if (content is List) {
-      for (final part in content) {
-        if (part is! Map<String, dynamic>) {
-          continue;
+    Future<Uint8List?> readPotentialImage(dynamic value) async {
+      if (value == null) {
+        return null;
+      }
+
+      if (value is String) {
+        final bytesFromText = _decodeGeneratedImage(value);
+        if (bytesFromText != null) {
+          return bytesFromText;
         }
 
-        final imageUrlValue = part['image_url'];
+        final remoteUrl = _extractHttpImageUrl(value);
+        if (remoteUrl != null) {
+          try {
+            return await _downloadImageBytesFromUrl(remoteUrl);
+          } catch (_) {
+            return null;
+          }
+        }
+        return null;
+      }
+
+      if (value is Map<String, dynamic>) {
+        final imageUrlValue = value['image_url'];
         if (imageUrlValue is Map<String, dynamic>) {
           final url = (imageUrlValue['url'] as String?)?.trim() ?? '';
-          final bytes = _decodeGeneratedImage(url);
+          final bytes = await readPotentialImage(url);
           if (bytes != null) {
             return bytes;
           }
         } else if (imageUrlValue is String) {
-          final bytes = _decodeGeneratedImage(imageUrlValue.trim());
+          final bytes = await readPotentialImage(imageUrlValue);
           if (bytes != null) {
             return bytes;
           }
         }
 
-        final b64 = (part['b64_json'] as String?)?.trim() ?? '';
+        final b64 = (value['b64_json'] as String?)?.trim() ?? '';
         if (b64.isNotEmpty) {
           final bytes = _decodeGeneratedImage(b64);
           if (bytes != null) {
             return bytes;
           }
         }
+
+        final imageBase64 = (value['image_base64'] as String?)?.trim() ?? '';
+        if (imageBase64.isNotEmpty) {
+          final bytes = _decodeGeneratedImage(imageBase64);
+          if (bytes != null) {
+            return bytes;
+          }
+        }
+
+        final url = (value['url'] as String?)?.trim() ?? '';
+        if (url.isNotEmpty) {
+          final bytes = await readPotentialImage(url);
+          if (bytes != null) {
+            return bytes;
+          }
+        }
+
+        final text = (value['text'] as String?)?.trim() ?? '';
+        if (text.isNotEmpty) {
+          final bytes = await readPotentialImage(text);
+          if (bytes != null) {
+            return bytes;
+          }
+        }
       }
+
+      if (value is List) {
+        for (final item in value) {
+          final bytes = await readPotentialImage(item);
+          if (bytes != null) {
+            return bytes;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    final content = message['content'];
+    if (content is List) {
+      for (final part in content) {
+        final bytes = await readPotentialImage(part);
+        if (bytes != null) {
+          return bytes;
+        }
+      }
+    }
+
+    final contentText = message['content'];
+    final fromText = await readPotentialImage(contentText);
+    if (fromText != null) {
+      return fromText;
+    }
+
+    final messageImages = message['images'];
+    final fromImages = await readPotentialImage(messageImages);
+    if (fromImages != null) {
+      return fromImages;
+    }
+
+    final topLevelData = decoded['data'];
+    final fromData = await readPotentialImage(topLevelData);
+    if (fromData != null) {
+      return fromData;
     }
 
     return null;
@@ -743,9 +943,21 @@ class AddProductViewModel extends ChangeNotifier {
       throw StateError('Missing OPENROUTER_API_KEY in .env');
     }
 
-    final model = dotenv.env['OPENROUTER_IMAGE_MODEL']?.trim().isNotEmpty == true
-      ? dotenv.env['OPENROUTER_IMAGE_MODEL']!.trim()
-      : 'openrouter/auto';
+    final configuredModel = dotenv.env['OPENROUTER_IMAGE_MODEL']?.trim() ?? '';
+    final configuredMaxTokens =
+        int.tryParse(dotenv.env['OPENROUTER_MAX_TOKENS']?.trim() ?? '') ?? 512;
+    final tokenCandidates = <int>[
+      if (configuredMaxTokens > 0) configuredMaxTokens,
+      512,
+      256,
+      128,
+    ].toSet().toList(growable: false);
+
+    final modelCandidates = <String>[
+      if (configuredModel.isNotEmpty) configuredModel,
+      'openai/gpt-image-1',
+      'openrouter/auto',
+    ];
 
     final normalBase64 = base64Encode(normalImageBytes);
     final modelBase64 = base64Encode(modelImageBytes);
@@ -753,88 +965,131 @@ class AddProductViewModel extends ChangeNotifier {
         'Generate a single realistic hover product image for a jewelry catalog. '
         'Use the first image as the main product reference and the second image as model/style reference. '
         'Keep the jewelry details from the first image, blend naturally for hover state, clean background, '
-        'high quality e-commerce output. Product name: $productName.';
+      'high quality e-commerce output. '
+      'Return image output directly (either as an image data URL or image URL), not plain explanation text. '
+      'Product name: $productName.';
 
     final runtimeOrigin = kIsWeb ? Uri.base.origin : '';
-    final siteUrl = dotenv.env['OPENROUTER_SITE_URL']?.trim().isNotEmpty == true
-      ? dotenv.env['OPENROUTER_SITE_URL']!.trim()
-      : (runtimeOrigin.isNotEmpty ? runtimeOrigin : 'http://localhost');
-    final appTitle = dotenv.env['OPENROUTER_APP_TITLE']?.trim().isNotEmpty == true
-        ? dotenv.env['OPENROUTER_APP_TITLE']!.trim()
-        : 'goldapp';
+    final configuredSiteUrl = dotenv.env['OPENROUTER_SITE_URL']?.trim() ?? '';
+    final configuredAppTitle = dotenv.env['OPENROUTER_APP_TITLE']?.trim() ?? '';
 
-    final response = await http.post(
-      Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
-      headers: {
-        'Authorization': 'Bearer $apiKey',
-        'Content-Type': 'application/json',
-        'HTTP-Referer': siteUrl,
-        'X-Title': appTitle,
-      },
-      body: jsonEncode({
-        'model': model,
-        'messages': [
-          {
-            'role': 'user',
-            'content': [
-              {'type': 'text', 'text': prompt},
+    final headers = <String, String>{
+      'Authorization': 'Bearer $apiKey',
+      'Content-Type': 'application/json',
+    };
+
+    // These headers are optional for OpenRouter; include only when explicitly set.
+    if (configuredSiteUrl.isNotEmpty) {
+      headers['HTTP-Referer'] = configuredSiteUrl;
+    } else if (runtimeOrigin.isNotEmpty) {
+      headers['HTTP-Referer'] = runtimeOrigin;
+    }
+
+    if (configuredAppTitle.isNotEmpty) {
+      headers['X-Title'] = configuredAppTitle;
+    }
+
+    String? lastRecoverableError;
+
+    for (final model in modelCandidates.toSet()) {
+      for (final maxTokens in tokenCandidates) {
+        final response = await http.post(
+          Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
+          headers: headers,
+          body: jsonEncode({
+            'model': model,
+            'max_tokens': maxTokens,
+            'modalities': ['text', 'image'],
+            'messages': [
               {
-                'type': 'image_url',
-                'image_url': {'url': 'data:image/jpeg;base64,$normalBase64'}
-              },
-              {
-                'type': 'image_url',
-                'image_url': {'url': 'data:image/jpeg;base64,$modelBase64'}
+                'role': 'user',
+                'content': [
+                  {'type': 'text', 'text': prompt},
+                  {
+                    'type': 'image_url',
+                    'image_url': {'url': 'data:image/jpeg;base64,$normalBase64'}
+                  },
+                  {
+                    'type': 'image_url',
+                    'image_url': {'url': 'data:image/jpeg;base64,$modelBase64'}
+                  }
+                ],
               }
             ],
-          }
-        ],
-      }),
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      String details = '';
-      try {
-        final parsed = jsonDecode(response.body);
-        if (parsed is Map<String, dynamic>) {
-          final err = parsed['error'];
-          if (err is Map<String, dynamic>) {
-            final msg = (err['message'] as String?)?.trim() ?? '';
-            if (msg.isNotEmpty) {
-              details = msg;
-            }
-          }
-        }
-      } catch (_) {
-        // Keep fallback generic message when response body is not JSON.
-      }
-
-      if (response.statusCode == 401) {
-        throw StateError(
-          details.isNotEmpty
-              ? 'OpenRouter auth failed (401): $details'
-              : 'OpenRouter authentication failed (401). Check OPENROUTER_API_KEY in .env and restart the app.',
+          }),
         );
-      }
 
-      if (response.statusCode == 404 && details.isNotEmpty) {
-        throw StateError('OpenRouter model issue (404): $details');
-      }
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          String details = '';
+          try {
+            final parsed = jsonDecode(response.body);
+            if (parsed is Map<String, dynamic>) {
+              final err = parsed['error'];
+              if (err is Map<String, dynamic>) {
+                final msg = (err['message'] as String?)?.trim() ?? '';
+                if (msg.isNotEmpty) {
+                  details = msg;
+                }
+              }
+            }
+          } catch (_) {
+            // Keep fallback generic message when response body is not JSON.
+          }
 
-      throw StateError(
-        details.isNotEmpty
-            ? 'OpenRouter request failed (${response.statusCode}): $details'
-            : 'OpenRouter request failed (${response.statusCode}).',
-      );
+          if (response.statusCode == 401) {
+            final lowered = details.toLowerCase();
+            if (lowered.contains('user not found')) {
+              throw StateError(
+                'OpenRouter user not found for this API key. Generate a new API key in your OpenRouter account and update OPENROUTER_API_KEY in .env.',
+              );
+            }
+            throw StateError(
+              details.isNotEmpty
+                  ? 'OpenRouter auth failed (401): $details'
+                  : 'OpenRouter authentication failed (401). Check OPENROUTER_API_KEY in .env and restart the app.',
+            );
+          }
+
+          final lowered = details.toLowerCase();
+          final isNoEndpoint = response.statusCode == 404 &&
+              (lowered.contains('no endpoints found') ||
+                  lowered.contains('model issue'));
+          if (isNoEndpoint) {
+            lastRecoverableError = 'Model "$model" unavailable: $details';
+            break;
+          }
+
+          final isCreditIssue = response.statusCode == 402 &&
+              (lowered.contains('requires more credits') ||
+                  lowered.contains('max_tokens'));
+          if (isCreditIssue) {
+            lastRecoverableError =
+                'Credits/token limit hit for model "$model" at max_tokens=$maxTokens. Retrying with lower budget.';
+            continue;
+          }
+
+          throw StateError(
+            details.isNotEmpty
+                ? 'OpenRouter request failed (${response.statusCode}): $details'
+                : 'OpenRouter request failed (${response.statusCode}).',
+          );
+        }
+
+        final decoded = jsonDecode(response.body);
+        final generatedBytes = await _extractGeneratedBytesFromOpenRouter(decoded);
+        if (generatedBytes != null && generatedBytes.isNotEmpty) {
+          return generatedBytes;
+        }
+
+        lastRecoverableError =
+            'Model "$model" returned no image payload. Trying fallback model.';
+      }
     }
 
-    final decoded = jsonDecode(response.body);
-    final generatedBytes = _extractGeneratedBytesFromOpenRouter(decoded);
-    if (generatedBytes == null || generatedBytes.isEmpty) {
-      throw StateError('OpenRouter did not return a generated image.');
-    }
-
-    return generatedBytes;
+    throw StateError(
+      lastRecoverableError ??
+          'OpenRouter did not return a generated image. Set OPENROUTER_IMAGE_MODEL in .env to an image-capable model and try again.',
+    );
   }
 
   Future<bool> generateAiHoverImage() async {
@@ -964,6 +1219,31 @@ class AddProductViewModel extends ChangeNotifier {
     if (value == null) {
       return 'Category is required';
     }
+    return null;
+  }
+
+  String? _legacyProductMetalType(String selectedType) {
+    final normalized = selectedType.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    if (normalized.contains('white') && normalized.contains('gold')) {
+      return 'White Gold';
+    }
+    if (normalized.contains('rose') && normalized.contains('gold')) {
+      return 'Rose Gold';
+    }
+    if (normalized.contains('platinum')) {
+      return 'Platinum';
+    }
+    if (normalized.contains('silver')) {
+      return 'Silver';
+    }
+    if (normalized.contains('gold')) {
+      return 'Gold';
+    }
+
     return null;
   }
 
@@ -1178,6 +1458,15 @@ class AddProductViewModel extends ChangeNotifier {
       }
 
       final draft = buildProduct();
+      final legacyMetalType = _legacyProductMetalType(draft.metalType);
+      if (legacyMetalType == null) {
+        errorMessage =
+            'Selected metal "${draft.metalType}" is not supported by product_metal constraint. Use Gold, White Gold, Rose Gold, Platinum or Silver naming.';
+        isSubmitting = false;
+        notifyListeners();
+        return null;
+      }
+
       final slug = '${_slugify(draft.name)}-${DateTime.now().millisecondsSinceEpoch}';
       final sku = _buildSku(draft.name);
       late final String imageUrl;
@@ -1238,7 +1527,7 @@ class AddProductViewModel extends ChangeNotifier {
 
       await Supabase.instance.client.from('product_metals').insert({
         'product_id': productId,
-        'metal_type': draft.metalType,
+        'metal_type': legacyMetalType,
         'purity': '${draft.purityKarat}K',
         'is_available': true,
       });

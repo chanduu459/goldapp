@@ -4,7 +4,7 @@ class ManageProduct {
     required this.name,
     required this.categoryId,
     required this.categoryName,
-    required this.basePrice,
+    required this.originalPrice,
     required this.imageUrl,
     required this.description,
     required this.isActive,
@@ -14,7 +14,7 @@ class ManageProduct {
   final String name;
   final int categoryId;
   final String categoryName;
-  final double basePrice;
+  final double originalPrice;
   final String imageUrl;
   final String description;
   final bool isActive;

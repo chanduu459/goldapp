@@ -52,7 +52,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       final productRows = await Supabase.instance.client
           .from('products')
           .select(
-            'id, name, category_id, base_price, image_url, description, is_active, categories(name)',
+            'id, name, category_id, original_price, base_price, image_url, description, is_active, categories(name)',
           )
           .order('id', ascending: false);
 
@@ -68,7 +68,10 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
               name: (row['name'] as String? ?? '').trim(),
               categoryId: row['category_id'] as int,
               categoryName: categoryName,
-              basePrice: ((row['base_price'] as num?) ?? 0).toDouble(),
+              originalPrice: ((row['original_price'] as num?) ??
+                      (row['base_price'] as num?) ??
+                      0)
+                  .toDouble(),
               imageUrl: (row['image_url'] as String? ?? '').trim(),
               description: (row['description'] as String? ?? '').trim(),
               isActive: row['is_active'] as bool? ?? true,
@@ -89,17 +92,20 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     required int productId,
     required String name,
     required int categoryId,
-    required double basePrice,
+    required double originalPrice,
     required String description,
     required bool isActive,
+    bool notifyUi = true,
   }) async {
     if (_isDisposed || isSaving) {
       return false;
     }
 
-    isSaving = true;
     errorMessage = null;
-    _notifySafely();
+    if (notifyUi) {
+      isSaving = true;
+      _notifySafely();
+    }
 
     try {
       await Supabase.instance.client
@@ -107,14 +113,16 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
           .update({
             'name': name.trim(),
             'category_id': categoryId,
-            'base_price': basePrice,
+            'original_price': originalPrice,
             'description': description.trim(),
             'is_active': isActive,
           })
           .eq('id', productId);
 
-      isSaving = false;
-      _notifySafely();
+      if (notifyUi) {
+        isSaving = false;
+        _notifySafely();
+      }
       return true;
     } on PostgrestException catch (e) {
       errorMessage = e.message;
@@ -122,8 +130,10 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       errorMessage = 'Unable to update product.';
     }
 
-    isSaving = false;
-    _notifySafely();
+    if (notifyUi) {
+      isSaving = false;
+      _notifySafely();
+    }
     return false;
   }
 

@@ -21,6 +21,11 @@ class AdminActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final cardGradientStart = Color.lerp(iconBackground, Colors.white, 0.42)!;
+    final cardGradientEnd = Color.lerp(iconBackground, Colors.white, 0.9)!;
+    final borderColor = Color.lerp(iconColor, Colors.white, 0.7)!;
+    final actionColor = Color.lerp(iconColor, const Color(0xFF021B44), 0.28)!;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -30,12 +35,21 @@ class AdminActionCard extends StatelessWidget {
         highlightColor: theme.colorScheme.primary.withValues(alpha: 0.06),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [cardGradientStart, cardGradientEnd],
+            ),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE6E7EB)),
-            boxShadow: const [
+            border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+            boxShadow: [
+              BoxShadow(
+                color: iconColor.withValues(alpha: 0.08),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
               BoxShadow(
                 color: Color(0x140A2A43),
                 blurRadius: 18,
@@ -43,35 +57,69 @@ class AdminActionCard extends StatelessWidget {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: iconBackground,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: iconColor, size: 34),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF021B44),
+              Positioned(
+                right: -18,
+                top: -18,
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: iconBackground.withValues(alpha: 0.35),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: 16,
-                  color: Color(0xFF5D6A83),
-                  height: 1.45,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      color: iconBackground,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(icon, color: iconColor, size: 34),
+                  ),
+                  const SizedBox(height: 22),
+                  Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF021B44),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontSize: 16,
+                      color: const Color(0xFF5D6A83),
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Text(
+                        'Tap to open',
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: actionColor,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 18,
+                        color: actionColor,
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
           ),

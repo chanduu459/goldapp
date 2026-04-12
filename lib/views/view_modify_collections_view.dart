@@ -438,7 +438,15 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
                   ),
                 ),
               Expanded(
-                child: _collections.isEmpty
+                child: _isLoading
+                    ? const Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        ),
+                      )
+                    : _collections.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

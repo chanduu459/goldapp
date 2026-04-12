@@ -484,7 +484,15 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
                   ),
                 ),
               Expanded(
-                child: _items.isEmpty
+                child: _isLoading
+                    ? const Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        ),
+                      )
+                    : _items.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,

@@ -36,6 +36,36 @@ class _AddCategoryViewState extends State<AddCategoryView> {
     return replaced.replaceAll(RegExp(r'^-+|-+$'), '');
   }
 
+  Widget _buildSectionCard({
+    required ThemeData theme,
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE8EAF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF021B44),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...children,
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveCategory() async {
     if (_isSaving) {
       return;
@@ -162,114 +192,127 @@ class _AddCategoryViewState extends State<AddCategoryView> {
                         ),
                       ),
                       const SizedBox(height: 20),
-                      TextFormField(
-                        controller: _nameController,
-                        textInputAction: TextInputAction.next,
-                        onChanged: (value) {
-                          if (_slugManuallyEdited) {
-                            return;
-                          }
-                          _slugController.text = _slugify(value);
-                        },
-                        decoration: const InputDecoration(
-                          labelText: 'Category Name',
-                          hintText: 'Example: Necklaces',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          final text = value?.trim() ?? '';
-                          if (text.isEmpty) {
-                            return 'Category name is required.';
-                          }
-                          if (text.length < 2) {
-                            return 'Category name is too short.';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _slugController,
-                        textInputAction: TextInputAction.next,
-                        onChanged: (_) {
-                          if (!_slugManuallyEdited) {
-                            setState(() {
-                              _slugManuallyEdited = true;
-                            });
-                          }
-                        },
-                        decoration: const InputDecoration(
-                          labelText: 'Slug',
-                          hintText: 'necklaces',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          final text = (value ?? '').trim().toLowerCase();
-                          if (text.isEmpty) {
-                            return 'Slug is required.';
-                          }
-                          if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(text)) {
-                            return 'Use lowercase letters, numbers and hyphens only.';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _descriptionController,
-                        textInputAction: TextInputAction.newline,
-                        minLines: 3,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          labelText: 'Description (optional)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _imageUrlController,
-                        textInputAction: TextInputAction.next,
-                        keyboardType: TextInputType.url,
-                        decoration: const InputDecoration(
-                          labelText: 'Image URL (optional)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _sortOrderController,
-                        textInputAction: TextInputAction.done,
-                        keyboardType: TextInputType.number,
-                        onFieldSubmitted: (_) => _saveCategory(),
-                        decoration: const InputDecoration(
-                          labelText: 'Sort Order',
-                          hintText: '0',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          final text = (value ?? '').trim();
-                          if (text.isEmpty) {
-                            return null;
-                          }
-                          if (int.tryParse(text) == null) {
-                            return 'Sort order must be a number.';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Active category'),
-                        subtitle: const Text('Controls if this category is available.'),
-                        value: _isActive,
-                        onChanged: _isSaving
-                            ? null
-                            : (value) {
+                      _buildSectionCard(
+                        theme: theme,
+                        title: 'Category Details',
+                        children: [
+                          TextFormField(
+                            controller: _nameController,
+                            textInputAction: TextInputAction.next,
+                            onChanged: (value) {
+                              if (_slugManuallyEdited) {
+                                return;
+                              }
+                              _slugController.text = _slugify(value);
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Category Name',
+                              hintText: 'Example: Necklaces',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              final text = value?.trim() ?? '';
+                              if (text.isEmpty) {
+                                return 'Category name is required.';
+                              }
+                              if (text.length < 2) {
+                                return 'Category name is too short.';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _slugController,
+                            textInputAction: TextInputAction.next,
+                            onChanged: (_) {
+                              if (!_slugManuallyEdited) {
                                 setState(() {
-                                  _isActive = value;
+                                  _slugManuallyEdited = true;
                                 });
-                              },
+                              }
+                            },
+                            decoration: const InputDecoration(
+                              labelText: 'Slug',
+                              hintText: 'necklaces',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              final text = (value ?? '').trim().toLowerCase();
+                              if (text.isEmpty) {
+                                return 'Slug is required.';
+                              }
+                              if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
+                                  .hasMatch(text)) {
+                                return 'Use lowercase letters, numbers and hyphens only.';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _descriptionController,
+                            textInputAction: TextInputAction.newline,
+                            minLines: 3,
+                            maxLines: 5,
+                            decoration: const InputDecoration(
+                              labelText: 'Description (optional)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _imageUrlController,
+                            textInputAction: TextInputAction.next,
+                            keyboardType: TextInputType.url,
+                            decoration: const InputDecoration(
+                              labelText: 'Image URL (optional)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          TextFormField(
+                            controller: _sortOrderController,
+                            textInputAction: TextInputAction.done,
+                            keyboardType: TextInputType.number,
+                            onFieldSubmitted: (_) => _saveCategory(),
+                            decoration: const InputDecoration(
+                              labelText: 'Sort Order',
+                              hintText: '0',
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              final text = (value ?? '').trim();
+                              if (text.isEmpty) {
+                                return null;
+                              }
+                              if (int.tryParse(text) == null) {
+                                return 'Sort order must be a number.';
+                              }
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      _buildSectionCard(
+                        theme: theme,
+                        title: 'Category Settings',
+                        children: [
+                          SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Active category'),
+                            subtitle: const Text('Controls if this category is available.'),
+                            value: _isActive,
+                            onChanged: _isSaving
+                                ? null
+                                : (value) {
+                                    setState(() {
+                                      _isActive = value;
+                                    });
+                                  },
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       SizedBox(

@@ -14,6 +14,13 @@ class AddProductView extends StatefulWidget {
 }
 
 class _AddProductViewState extends State<AddProductView> {
+  static const Color _ink = Color(0xFF172C52);
+  static const Color _inkMuted = Color(0xFF5B6B86);
+  static const Color _gold = Color(0xFFC88B10);
+  static const Color _goldSoft = Color(0xFFF3E6C9);
+  static const Color _surface = Color(0xFFFFFEFB);
+  static const Color _surfaceAlt = Color(0xFFFAF6EE);
+
   late final AddProductViewModel _viewModel;
   bool _isDraggingPrimary = false;
   bool _isDraggingHover = false;
@@ -79,23 +86,67 @@ class _AddProductViewState extends State<AddProductView> {
     }
   }
 
-  InputDecoration _fieldDecoration(String label) {
+  InputDecoration _fieldDecoration(
+    String label, {
+    IconData? icon,
+    String? hintText,
+    String? helperText,
+  }) {
     return InputDecoration(
       labelText: label,
+      hintText: hintText,
+      helperText: helperText,
+      labelStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        color: _ink,
+      ),
+      hintStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 15,
+        color: const Color(0xFF7E8AA3),
+      ),
+      helperStyle: GoogleFonts.plusJakartaSans(
+        fontSize: 11,
+        color: _inkMuted,
+      ),
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: const Color(0xFFFFFEFC),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      prefixIcon: icon == null
+          ? null
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _surfaceAlt,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _goldSoft),
+                ),
+                child: Icon(icon, size: 20, color: _gold),
+              ),
+            ),
+      prefixIconConstraints: const BoxConstraints(minHeight: 38, minWidth: 52),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFD7DFEA)),
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFE8D9BD)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFFD7DFEA)),
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFE8D9BD)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF0C8A7B), width: 1.5),
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFC88B10), width: 1.6),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFB3261E)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0xFFB3261E), width: 1.6),
       ),
     );
   }
@@ -123,11 +174,12 @@ class _AddProductViewState extends State<AddProductView> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           color: isDragging
-              ? const Color(0xFFDDF5EE)
-              : const Color(0xFFF4F8FE),
+              ? const Color(0xFFFFF1D7)
+              : const Color(0xFFFFF9EC),
           border: Border.all(
-            color:
-                isDragging ? const Color(0xFF0C8A7B) : const Color(0xFFBFD0E8),
+            color: isDragging
+                ? const Color(0xFFC88B10)
+                : const Color(0xFFE6D2A9),
             width: 1.5,
           ),
         ),
@@ -139,7 +191,7 @@ class _AddProductViewState extends State<AddProductView> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFF17355C),
+                color: _ink,
               ),
             ),
             const SizedBox(height: 8),
@@ -147,7 +199,7 @@ class _AddProductViewState extends State<AddProductView> {
               'Drag and drop image here or choose from files',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 12,
-                color: const Color(0xFF4F627E),
+                color: _inkMuted,
               ),
             ),
             const SizedBox(height: 10),
@@ -178,7 +230,7 @@ class _AddProductViewState extends State<AddProductView> {
                   'Selected: $fileName',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
-                    color: const Color(0xFF4E627E),
+                    color: _inkMuted,
                   ),
                 ),
               ),
@@ -201,16 +253,86 @@ class _AddProductViewState extends State<AddProductView> {
     );
   }
 
+  Widget _buildSectionCard({
+    required String title,
+    String? subtitle,
+    IconData? icon,
+    required Widget child,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (icon != null)
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: _surfaceAlt,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _goldSoft),
+                ),
+                child: Icon(icon, size: 20, color: _gold),
+              ),
+            if (icon != null) const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w700,
+                      color: _ink,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: _inkMuted,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Container(
+          height: 1.2,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                _gold,
+                _gold.withValues(alpha: 0.45),
+                _gold.withValues(alpha: 0.1),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        child,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF0FDF9), Color(0xFFE8F4FF), Color(0xFFFCF7E8)],
+            colors: [Color(0xFFFFFDF9), Color(0xFFFBF7EE), Color(0xFFFFFEFC)],
           ),
         ),
         child: SafeArea(
@@ -221,14 +343,14 @@ class _AddProductViewState extends State<AddProductView> {
                 constraints: const BoxConstraints(maxWidth: 900),
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(24),
-                    color: theme.colorScheme.surface.withValues(alpha: 0.94),
-                    border: Border.all(color: const Color(0xFFDCE4F0)),
+                    borderRadius: BorderRadius.circular(30),
+                    color: _surface,
+                    border: Border.all(color: const Color(0xFFF0E3CC)),
                     boxShadow: const [
                       BoxShadow(
-                        color: Color(0x1A0A2A43),
-                        blurRadius: 24,
-                        offset: Offset(0, 14),
+                        color: Color(0x0F000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
                       ),
                     ],
                   ),
@@ -264,29 +386,60 @@ class _AddProductViewState extends State<AddProductView> {
                                     Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        IconButton.filledTonal(
-                                          onPressed: () => Navigator.of(context).pop(),
-                                          icon: const Icon(Icons.arrow_back),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          'Add Gold Ornament',
-                                          maxLines: 2,
-                                          softWrap: true,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF08223E),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Schema-aligned product creation with dual images',
-                                          softWrap: true,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 13,
-                                            color: const Color(0xFF5F6E84),
-                                          ),
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Add Ornament',
+                                                    maxLines: 1,
+                                                    softWrap: false,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.playfairDisplay(
+                                                      fontSize: 30,
+                                                      height: 1,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: _ink,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                 
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Container(
+                                              width: 60,
+                                              height: 60,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                gradient: const LinearGradient(
+                                                  colors: [
+                                                    Color(0xFFFFE9BC),
+                                                    Color(0xFFF0C868),
+                                                  ],
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                ),
+                                                boxShadow: const [
+                                                  BoxShadow(
+                                                    color: Color(0x33000000),
+                                                    blurRadius: 14,
+                                                    offset: Offset(0, 7),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: const Icon(
+                                                Icons.diamond_outlined,
+                                                size: 26,
+                                                color: Color(0xFF8A5A00),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     )
@@ -294,50 +447,86 @@ class _AddProductViewState extends State<AddProductView> {
                                     Row(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        IconButton.filledTonal(
-                                          onPressed: () => Navigator.of(context).pop(),
-                                          icon: const Icon(Icons.arrow_back),
-                                        ),
-                                        const SizedBox(width: 12),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Add Gold Ornament',
+                                                'Add Ornament',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 28,
+                                                style: GoogleFonts.playfairDisplay(
+                                                  fontSize: 44,
+                                                  height: 1,
                                                   fontWeight: FontWeight.w700,
-                                                  color: const Color(0xFF08223E),
+                                                  color: _ink,
                                                 ),
                                               ),
+                                              const SizedBox(height: 8),
                                               Text(
-                                                'Schema-aligned product creation with dual images',
+                                                'Create a new product with dual images and detailed specifications.',
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 13,
-                                                  color: const Color(0xFF5F6E84),
+                                                  fontSize: 14,
+                                                  color: _inkMuted,
+                                                  height: 1.35,
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
+                                        const SizedBox(width: 16),
+                                        Container(
+                                          width: 96,
+                                          height: 96,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFFFFE9BC),
+                                                Color(0xFFF0C868),
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Color(0x33000000),
+                                                blurRadius: 20,
+                                                offset: Offset(0, 9),
+                                              ),
+                                            ],
+                                          ),
+                                          child: const Icon(
+                                            Icons.diamond_outlined,
+                                            size: 44,
+                                            color: Color(0xFF8A5A00),
+                                          ),
+                                        ),
                                       ],
                                     ),
-                              const SizedBox(height: 24),
-                              Wrap(
-                                runSpacing: 14,
-                                spacing: 14,
-                                children: [
+                              const SizedBox(height: 14),
+                              _buildSectionCard(
+                                title: 'Product Details',
+                                subtitle:
+                                    'Enter essential information like category, pricing, material, and attributes.',
+                                icon: Icons.inventory_2_outlined,
+                                child: Wrap(
+                                  runSpacing: 14,
+                                  spacing: 14,
+                                  children: [
                                   SizedBox(
                                     width: adaptiveWidth(desktop: 430, tablet: 360),
                                     child: TextFormField(
                                       controller: _viewModel.nameController,
-                                      decoration: _fieldDecoration('Product Name'),
+                                      decoration: _fieldDecoration(
+                                        'Product Name *',
+                                        icon: Icons.workspace_premium_outlined,
+                                        hintText:
+                                            'e.g., Floral Gold Ring with Diamond',
+                                      ),
                                       validator: (value) => _viewModel
                                           .validateRequired(value, 'Product Name'),
                                     ),
@@ -361,7 +550,10 @@ class _AddProductViewState extends State<AddProductView> {
                                       onChanged: _viewModel.isSubmitting
                                           ? null
                                           : _viewModel.setSelectedCategory,
-                                      decoration: _fieldDecoration('Category'),
+                                      decoration: _fieldDecoration(
+                                        'Category *',
+                                        icon: Icons.diamond_outlined,
+                                      ),
                                       validator:
                                           _viewModel.validateSelectedCategory,
                                     ),
@@ -390,12 +582,84 @@ class _AddProductViewState extends State<AddProductView> {
                                               _viewModel.collections.isEmpty
                                           ? null
                                           : _viewModel.setSelectedCollection,
-                                      decoration: _fieldDecoration('Collection')
-                                          .copyWith(
+                                      decoration: _fieldDecoration(
+                                        'Collection',
+                                        icon: Icons.bookmark_border_rounded,
                                         helperText: _viewModel.collections.isEmpty
                                             ? 'No collection added. Add your first collection below.'
-                                            : 'Select an existing collection.',
+                                            : 'Select an existing collection or leave empty.',
                                       ),
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: adaptiveWidth(desktop: 220, tablet: 200),
+                                    child: DropdownButtonFormField<String>(
+                                      key: ValueKey<String>(
+                                        'metal-${_viewModel.metalTypes.length}-${_viewModel.selectedMetalType}',
+                                      ),
+                                      initialValue: _viewModel.metalTypes.any(
+                                        (item) =>
+                                            item.name ==
+                                            _viewModel.selectedMetalType,
+                                      )
+                                          ? _viewModel.selectedMetalType
+                                          : null,
+                                      items: _viewModel.metalTypes
+                                          .map(
+                                            (item) => DropdownMenuItem<String>(
+                                              value: item.name,
+                                              child: Text(item.name),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                      onChanged: _viewModel.isSubmitting ||
+                                              _viewModel.metalTypes.isEmpty
+                                          ? null
+                                          : _viewModel.setSelectedMetalType,
+                                      decoration: _fieldDecoration(
+                                        'Metal Type *',
+                                        icon: Icons.palette_outlined,
+                                      ),
+                                      validator: (value) {
+                                        if (_viewModel.metalTypes.isEmpty) {
+                                          return 'Add metals first';
+                                        }
+                                        if ((value ?? '').trim().isEmpty) {
+                                          return 'Metal Type is required';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: adaptiveWidth(desktop: 170, tablet: 165),
+                                    child: TextFormField(
+                                      controller: _viewModel.purityController,
+                                      keyboardType: TextInputType.number,
+                                      decoration: _fieldDecoration(
+                                        'Purity (Karat) *',
+                                        icon: Icons.shield_outlined,
+                                        hintText: 'e.g., 22',
+                                      ),
+                                      validator: _viewModel.validatePurity,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: adaptiveWidth(desktop: 170, tablet: 165),
+                                    child: TextFormField(
+                                      controller: _viewModel.weightController,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                      decoration: _fieldDecoration(
+                                        'Weight (grams) *',
+                                        icon: Icons.scale_outlined,
+                                        hintText: '0.000',
+                                      ),
+                                      validator: (value) => _viewModel
+                                          .validatePositiveNumber(
+                                              value, 'Weight'),
                                     ),
                                   ),
                                   SizedBox(
@@ -406,8 +670,11 @@ class _AddProductViewState extends State<AddProductView> {
                                           const TextInputType.numberWithOptions(
                                         decimal: true,
                                       ),
-                                      decoration:
-                                          _fieldDecoration('Original Price'),
+                                      decoration: _fieldDecoration(
+                                        'Original Price (Rs) *',
+                                        icon: Icons.currency_rupee_rounded,
+                                        hintText: '0.00',
+                                      ),
                                       validator: (value) => _viewModel
                                           .validateOptionalPositiveNumber(
                                               value, 'Original Price'),
@@ -422,111 +689,28 @@ class _AddProductViewState extends State<AddProductView> {
                                           const TextInputType.numberWithOptions(
                                         decimal: true,
                                       ),
-                                      decoration:
-                                          _fieldDecoration('Making Charge'),
+                                      decoration: _fieldDecoration(
+                                        'Making Charge (Rs) *',
+                                        icon: Icons.handyman_outlined,
+                                        hintText: '0.00',
+                                      ),
                                       validator: (value) => _viewModel
                                           .validatePositiveNumber(
                                               value, 'Making Charge'),
                                     ),
                                   ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller: _viewModel.weightController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                        decimal: true,
-                                      ),
-                                      decoration:
-                                          _fieldDecoration('Weight (grams)'),
-                                      validator: (value) => _viewModel
-                                          .validatePositiveNumber(
-                                              value, 'Weight'),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 170, tablet: 165),
-                                    child: TextFormField(
-                                      controller: _viewModel.purityController,
-                                      keyboardType: TextInputType.number,
-                                      decoration:
-                                          _fieldDecoration('Purity (Karat)'),
-                                      validator: _viewModel.validatePurity,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 220, tablet: 200),
-                                    child: DropdownButtonFormField<String>(
-                                      initialValue: _viewModel.selectedMetalType,
-                                      items: const [
-                                        DropdownMenuItem(
-                                          value: 'Gold',
-                                          child: Text('Gold'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'White Gold',
-                                          child: Text('White Gold'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Rose Gold',
-                                          child: Text('Rose Gold'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Platinum',
-                                          child: Text('Platinum'),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Silver',
-                                          child: Text('Silver'),
-                                        ),
-                                      ],
-                                      onChanged: _viewModel.isSubmitting
-                                          ? null
-                                          : _viewModel.setSelectedMetalType,
-                                      decoration: _fieldDecoration('Metal Type'),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: adaptiveWidth(desktop: 220, tablet: 200),
-                                    child: FilterChip(
-                                      selected: _viewModel.hasDiamond,
-                                      label: const Text('Diamond'),
-                                      onSelected: _viewModel.isSubmitting
-                                          ? null
-                                          : _viewModel.setHasDiamond,
-                                    ),
-                                  ),
-                                  if (_viewModel.hasDiamond)
-                                    SizedBox(
-                                      width: adaptiveWidth(desktop: 220, tablet: 200),
-                                      child: DropdownButtonFormField<String>(
-                                        initialValue:
-                                            _viewModel.selectedDiamondType,
-                                        items: const [
-                                          DropdownMenuItem(
-                                            value: 'Natural',
-                                            child: Text('Natural'),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'Lab-Grown',
-                                            child: Text('Lab-Grown'),
-                                          ),
-                                        ],
-                                        onChanged: _viewModel.isSubmitting
-                                            ? null
-                                            : _viewModel
-                                                .setSelectedDiamondType,
-                                        decoration:
-                                            _fieldDecoration('Diamond Type'),
-                                      ),
-                                    ),
-                                ],
+                                  ],
+                                ),
                               ),
                               const SizedBox(height: 16),
-                              Wrap(
-                                spacing: 18,
-                                runSpacing: 14,
-                                children: [
+                              _buildSectionCard(
+                                title: 'Product Flags',
+                                subtitle: 'Set badges and visibility options.',
+                                icon: Icons.flag_outlined,
+                                child: Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: [
                                   FilterChip(
                                     selected: _viewModel.isNew,
                                     label: const Text('New Arrival'),
@@ -552,446 +736,473 @@ class _AddProductViewState extends State<AddProductView> {
                                     label: const Text('Rhodium Finish'),
                                     onSelected: _viewModel.setRhodiumFinish,
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 18),
-                              Text(
-                                'Image Upload Mode',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF17355C),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 10),
-                              SegmentedButton<ProductImageInputMode>(
-                                segments: const [
-                                  ButtonSegment<ProductImageInputMode>(
-                                    value: ProductImageInputMode.manual,
-                                    label: Text('Manual'),
-                                    icon: Icon(Icons.upload_file_outlined),
-                                  ),
-                                  ButtonSegment<ProductImageInputMode>(
-                                    value: ProductImageInputMode.ai,
-                                    label: Text('AI'),
-                                    icon: Icon(Icons.auto_awesome_outlined),
-                                  ),
-                                ],
-                                selected: {_viewModel.selectedImageInputMode},
-                                onSelectionChanged: _viewModel.isSubmitting
-                                    ? null
-                                    : (selection) {
-                                        final mode = selection.first;
-                                        _viewModel.setSelectedImageInputMode(mode);
-                                      },
-                              ),
-                              const SizedBox(height: 12),
-                              if (_viewModel.selectedImageInputMode ==
-                                  ProductImageInputMode.manual)
-                                if (isNarrow)
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildImageUploader(
-                                        title: 'Normal Image',
-                                        isDragging: _isDraggingPrimary,
-                                        type: ProductImageType.primary,
-                                        fileName: _viewModel.selectedPrimaryImageName,
-                                        bytes: _viewModel.selectedPrimaryImageBytes,
-                                        onEnter: () {
-                                          setState(() {
-                                            _isDraggingPrimary = true;
-                                          });
-                                        },
-                                        onExit: () {
-                                          setState(() {
-                                            _isDraggingPrimary = false;
-                                          });
-                                        },
+                              const SizedBox(height: 16),
+                              _buildSectionCard(
+                                title: 'Product Images',
+                                subtitle:
+                                    'Upload normal and hover images, or generate hover image using AI.',
+                                icon: Icons.photo_library_outlined,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Image Upload Mode',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: const Color(0xFF17355C),
                                       ),
-                                      const SizedBox(height: 16),
-                                      _buildImageUploader(
-                                        title: 'Hover Image',
-                                        isDragging: _isDraggingHover,
-                                        type: ProductImageType.hover,
-                                        fileName: _viewModel.selectedHoverImageName,
-                                        bytes: _viewModel.selectedHoverImageBytes,
-                                        onEnter: () {
-                                          setState(() {
-                                            _isDraggingHover = true;
-                                          });
-                                        },
-                                        onExit: () {
-                                          setState(() {
-                                            _isDraggingHover = false;
-                                          });
-                                        },
-                                      ),
-                                    ],
-                                  )
-                                else
-                                  Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: _buildImageUploader(
-                                          title: 'Normal Image',
-                                          isDragging: _isDraggingPrimary,
-                                          type: ProductImageType.primary,
-                                          fileName: _viewModel.selectedPrimaryImageName,
-                                          bytes: _viewModel.selectedPrimaryImageBytes,
-                                          onEnter: () {
-                                            setState(() {
-                                              _isDraggingPrimary = true;
-                                            });
-                                          },
-                                          onExit: () {
-                                            setState(() {
-                                              _isDraggingPrimary = false;
-                                            });
-                                          },
+                                    ),
+                                    const SizedBox(height: 10),
+                                    SegmentedButton<ProductImageInputMode>(
+                                      segments: const [
+                                        ButtonSegment<ProductImageInputMode>(
+                                          value: ProductImageInputMode.manual,
+                                          label: Text('Manual'),
+                                          icon: Icon(Icons.upload_file_outlined),
                                         ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: _buildImageUploader(
-                                          title: 'Hover Image',
-                                          isDragging: _isDraggingHover,
-                                          type: ProductImageType.hover,
-                                          fileName: _viewModel.selectedHoverImageName,
-                                          bytes: _viewModel.selectedHoverImageBytes,
-                                          onEnter: () {
-                                            setState(() {
-                                              _isDraggingHover = true;
-                                            });
-                                          },
-                                          onExit: () {
-                                            setState(() {
-                                              _isDraggingHover = false;
-                                            });
-                                          },
+                                        ButtonSegment<ProductImageInputMode>(
+                                          value: ProductImageInputMode.ai,
+                                          label: Text('AI'),
+                                          icon: Icon(Icons.auto_awesome_outlined),
                                         ),
-                                      ),
-                                    ],
-                                  )
-                              else
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      _buildImageUploader(
-                                        title: 'Normal Image (Upload)',
-                                        isDragging: _isDraggingPrimary,
-                                        type: ProductImageType.primary,
-                                        fileName: _viewModel.selectedPrimaryImageName,
-                                        bytes: _viewModel.selectedPrimaryImageBytes,
-                                        onEnter: () {
-                                          setState(() {
-                                            _isDraggingPrimary = true;
-                                          });
-                                        },
-                                        onExit: () {
-                                          setState(() {
-                                            _isDraggingPrimary = false;
-                                          });
-                                        },
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.all(14),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFF3F7FF),
-                                          borderRadius: BorderRadius.circular(14),
-                                          border: Border.all(
-                                            color: const Color(0xFFCCE0FF),
-                                          ),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                      ],
+                                      selected: {_viewModel.selectedImageInputMode},
+                                      onSelectionChanged: _viewModel.isSubmitting
+                                          ? null
+                                          : (selection) {
+                                              final mode = selection.first;
+                                              _viewModel.setSelectedImageInputMode(mode);
+                                            },
+                                    ),
+                                    const SizedBox(height: 12),
+                                    if (_viewModel.selectedImageInputMode ==
+                                        ProductImageInputMode.manual)
+                                      if (isNarrow)
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
                                           children: [
-                                            Text(
-                                              'Select Model Image (Hover)',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w700,
-                                                color: const Color(0xFF17355C),
+                                            _buildImageUploader(
+                                              title: 'Normal Image',
+                                              isDragging: _isDraggingPrimary,
+                                              type: ProductImageType.primary,
+                                              fileName: _viewModel.selectedPrimaryImageName,
+                                              bytes: _viewModel.selectedPrimaryImageBytes,
+                                              onEnter: () {
+                                                setState(() {
+                                                  _isDraggingPrimary = true;
+                                                });
+                                              },
+                                              onExit: () {
+                                                setState(() {
+                                                  _isDraggingPrimary = false;
+                                                });
+                                              },
+                                            ),
+                                            const SizedBox(height: 16),
+                                            _buildImageUploader(
+                                              title: 'Hover Image',
+                                              isDragging: _isDraggingHover,
+                                              type: ProductImageType.hover,
+                                              fileName: _viewModel.selectedHoverImageName,
+                                              bytes: _viewModel.selectedHoverImageBytes,
+                                              onEnter: () {
+                                                setState(() {
+                                                  _isDraggingHover = true;
+                                                });
+                                              },
+                                              onExit: () {
+                                                setState(() {
+                                                  _isDraggingHover = false;
+                                                });
+                                              },
+                                            ),
+                                          ],
+                                        )
+                                      else
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: _buildImageUploader(
+                                                title: 'Normal Image',
+                                                isDragging: _isDraggingPrimary,
+                                                type: ProductImageType.primary,
+                                                fileName: _viewModel.selectedPrimaryImageName,
+                                                bytes: _viewModel.selectedPrimaryImageBytes,
+                                                onEnter: () {
+                                                  setState(() {
+                                                    _isDraggingPrimary = true;
+                                                  });
+                                                },
+                                                onExit: () {
+                                                  setState(() {
+                                                    _isDraggingPrimary = false;
+                                                  });
+                                                },
                                               ),
                                             ),
-                                            const SizedBox(height: 6),
-                                            Text(
-                                              'Showing model images for the selected category.',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 12,
-                                                color: const Color(0xFF4F627E),
+                                            const SizedBox(width: 16),
+                                            Expanded(
+                                              child: _buildImageUploader(
+                                                title: 'Hover Image',
+                                                isDragging: _isDraggingHover,
+                                                type: ProductImageType.hover,
+                                                fileName: _viewModel.selectedHoverImageName,
+                                                bytes: _viewModel.selectedHoverImageBytes,
+                                                onEnter: () {
+                                                  setState(() {
+                                                    _isDraggingHover = true;
+                                                  });
+                                                },
+                                                onExit: () {
+                                                  setState(() {
+                                                    _isDraggingHover = false;
+                                                  });
+                                                },
                                               ),
                                             ),
-                                            const SizedBox(height: 10),
-                                            if (_viewModel.isLoadingAiModelImages)
-                                              const LinearProgressIndicator(
-                                                minHeight: 3,
-                                              )
-                                            else if (_viewModel
-                                                .aiModelImages.isEmpty)
-                                              const Text(
-                                                'No model images available for this category. Add model images first.',
-                                                style: TextStyle(
-                                                  color: Color(0xFF8A451A),
+                                          ],
+                                        )
+                                    else
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          _buildImageUploader(
+                                            title: 'Normal Image (Upload)',
+                                            isDragging: _isDraggingPrimary,
+                                            type: ProductImageType.primary,
+                                            fileName: _viewModel.selectedPrimaryImageName,
+                                            bytes: _viewModel.selectedPrimaryImageBytes,
+                                            onEnter: () {
+                                              setState(() {
+                                                _isDraggingPrimary = true;
+                                              });
+                                            },
+                                            onExit: () {
+                                              setState(() {
+                                                _isDraggingPrimary = false;
+                                              });
+                                            },
+                                          ),
+                                          const SizedBox(height: 12),
+                                          Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF3F7FF),
+                                              borderRadius: BorderRadius.circular(14),
+                                              border: Border.all(
+                                                color: const Color(0xFFCCE0FF),
+                                              ),
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Select Model Image (Hover)',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: const Color(0xFF17355C),
+                                                  ),
                                                 ),
-                                              )
-                                            else
-                                              Wrap(
-                                                spacing: 10,
-                                                runSpacing: 10,
-                                                children: _viewModel.aiModelImages
-                                                    .map((item) {
-                                                  final isSelected =
-                                                      _viewModel
-                                                              .selectedAiModelImageId ==
-                                                          item.id;
-                                                  return InkWell(
-                                                    borderRadius:
-                                                        BorderRadius.circular(12),
-                                                    onTap: _viewModel.isSubmitting
-                                                        ? null
-                                                        : () => _viewModel
-                                                            .setSelectedAiModelImage(
-                                                                item),
-                                                    child: AnimatedContainer(
-                                                      duration: const Duration(
-                                                        milliseconds: 150,
-                                                      ),
-                                                      width: 126,
-                                                      padding:
-                                                          const EdgeInsets.all(8),
-                                                      decoration: BoxDecoration(
-                                                        color: isSelected
-                                                            ? const Color(
-                                                                0xFFE1F5F2)
-                                                            : Colors.white,
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  'Showing model images for the selected category.',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 12,
+                                                    color: const Color(0xFF4F627E),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                if (_viewModel.isLoadingAiModelImages)
+                                                  const LinearProgressIndicator(
+                                                    minHeight: 3,
+                                                  )
+                                                else if (_viewModel
+                                                    .aiModelImages.isEmpty)
+                                                  const Text(
+                                                    'No model images available for this category. Add model images first.',
+                                                    style: TextStyle(
+                                                      color: Color(0xFF8A451A),
+                                                    ),
+                                                  )
+                                                else
+                                                  Wrap(
+                                                    spacing: 10,
+                                                    runSpacing: 10,
+                                                    children: _viewModel.aiModelImages
+                                                        .map((item) {
+                                                      final isSelected =
+                                                          _viewModel.selectedAiModelImageId ==
+                                                              item.id;
+                                                      return InkWell(
                                                         borderRadius:
-                                                            BorderRadius.circular(
-                                                                12),
-                                                        border: Border.all(
-                                                          color: isSelected
-                                                              ? const Color(
-                                                                  0xFF0C8A7B)
-                                                              : const Color(
-                                                                  0xFFD4DEEF),
-                                                          width: isSelected
-                                                              ? 1.5
-                                                              : 1,
-                                                        ),
-                                                      ),
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          ClipRRect(
+                                                            BorderRadius.circular(12),
+                                                        onTap: _viewModel.isSubmitting
+                                                            ? null
+                                                            : () => _viewModel
+                                                                .setSelectedAiModelImage(
+                                                                    item),
+                                                        child: AnimatedContainer(
+                                                          duration: const Duration(
+                                                            milliseconds: 150,
+                                                          ),
+                                                          width: 126,
+                                                          padding:
+                                                              const EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: isSelected
+                                                                ? const Color(
+                                                                    0xFFE1F5F2)
+                                                                : Colors.white,
                                                             borderRadius:
-                                                                BorderRadius
-                                                                    .circular(8),
-                                                            child: Image.network(
-                                                              item.imageUrl,
-                                                              width:
-                                                                  double.infinity,
-                                                              height: 88,
-                                                              fit: BoxFit.cover,
-                                                              errorBuilder:
-                                                                  (context, error,
-                                                                          stackTrace) =>
-                                                                      Container(
-                                                                height: 88,
-                                                                color: const Color(
-                                                                    0xFFF1F5F9),
-                                                                child: const Center(
-                                                                  child: Icon(Icons
-                                                                      .broken_image_outlined),
+                                                                BorderRadius.circular(
+                                                                    12),
+                                                            border: Border.all(
+                                                              color: isSelected
+                                                                  ? const Color(
+                                                                      0xFF0C8A7B)
+                                                                  : const Color(
+                                                                      0xFFD4DEEF),
+                                                              width: isSelected
+                                                                  ? 1.5
+                                                                  : 1,
+                                                            ),
+                                                          ),
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              ClipRRect(
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(8),
+                                                                child: Image.network(
+                                                                  item.imageUrl,
+                                                                  width: double.infinity,
+                                                                  height: 88,
+                                                                  fit: BoxFit.cover,
+                                                                  errorBuilder: (
+                                                                    context,
+                                                                    error,
+                                                                    stackTrace,
+                                                                  ) => Container(
+                                                                    height: 88,
+                                                                    color: const Color(
+                                                                        0xFFF1F5F9),
+                                                                    child: const Center(
+                                                                      child: Icon(Icons
+                                                                          .broken_image_outlined),
+                                                                    ),
+                                                                  ),
                                                                 ),
                                                               ),
-                                                            ),
+                                                              const SizedBox(height: 8),
+                                                              Text(
+                                                                item.title,
+                                                                maxLines: 2,
+                                                                overflow:
+                                                                    TextOverflow.ellipsis,
+                                                                style: GoogleFonts
+                                                                    .plusJakartaSans(
+                                                                  fontSize: 12,
+                                                                  fontWeight:
+                                                                      FontWeight.w600,
+                                                                  color: const Color(
+                                                                      0xFF17355C),
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
-                                                          const SizedBox(
-                                                            height: 8,
-                                                          ),
-                                                          Text(
-                                                            item.title,
-                                                            maxLines: 2,
-                                                            overflow: TextOverflow
-                                                                .ellipsis,
-                                                            style: GoogleFonts
-                                                                .plusJakartaSans(
-                                                              fontSize: 12,
-                                                              fontWeight:
-                                                                  FontWeight.w600,
-                                                              color: const Color(
-                                                                  0xFF17355C),
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
+                                                        ),
+                                                      );
+                                                    }).toList(growable: false),
+                                                  ),
+                                                const SizedBox(height: 12),
+                                                if (_viewModel.selectedAiModelImageUrl ==
+                                                    null)
+                                                  Text(
+                                                    'Select one model image above, then tap Generate Hover Image.',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 12,
+                                                      color: const Color(0xFF8A451A),
                                                     ),
-                                                  );
-                                                }).toList(growable: false),
-                                              ),
-                                            const SizedBox(height: 12),
-                                            if (_viewModel.selectedAiModelImageUrl ==
-                                                null)
-                                              Text(
-                                                'Select one model image above, then tap Generate Hover Image.',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12,
-                                                  color: const Color(0xFF8A451A),
-                                                ),
-                                              )
-                                            else ...[
-                                              Text(
-                                                'Second Image Source (Model)',
-                                                style:
-                                                    GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color:
-                                                      const Color(0xFF17355C),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                child: Container(
-                                                  width: double.infinity,
-                                                  height: 220,
-                                                  color: const Color(0xFFF8FAFC),
-                                                  child: Image.network(
-                                                    _viewModel
-                                                        .selectedAiModelImageUrl!,
-                                                    fit: BoxFit.contain,
-                                                    errorBuilder: (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => const Center(
-                                                      child: Icon(
-                                                        Icons.broken_image_outlined,
+                                                  )
+                                                else ...[
+                                                  Text(
+                                                    'Second Image Source (Model)',
+                                                    style: GoogleFonts.plusJakartaSans(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: const Color(0xFF17355C),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(10),
+                                                    child: Container(
+                                                      width: double.infinity,
+                                                      height: 220,
+                                                      color: const Color(0xFFF8FAFC),
+                                                      child: Image.network(
+                                                        _viewModel
+                                                            .selectedAiModelImageUrl!,
+                                                        fit: BoxFit.contain,
+                                                        errorBuilder: (
+                                                          context,
+                                                          error,
+                                                          stackTrace,
+                                                        ) => const Center(
+                                                          child: Icon(
+                                                            Icons.broken_image_outlined,
+                                                          ),
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
-                                                ),
-                                              ),
-                                            ],
-                                            const SizedBox(height: 12),
-                                            FilledButton.icon(
-                                              onPressed: (_viewModel
-                                                          .isSubmitting ||
-                                                      _viewModel
-                                                          .isGeneratingAiHoverImage ||
-                                                      _viewModel
-                                                              .selectedAiModelImageUrl ==
-                                                          null)
-                                                  ? null
-                                                  : () async {
-                                                      final messenger =
-                                                          ScaffoldMessenger.of(
-                                                              context);
-                                                      final ok = await _viewModel
-                                                          .generateAiHoverImage();
-                                                      if (!mounted) {
-                                                        return;
-                                                      }
-                                                      if (!ok) {
-                                                        final message = _viewModel
-                                                                .errorMessage ??
-                                                            'Unable to generate hover image.';
-                                                        messenger.showSnackBar(
-                                                          SnackBar(
-                                                              content: Text(
-                                                                  message)),
-                                                        );
-                                                      }
-                                                    },
-                                              icon: _viewModel
-                                                      .isGeneratingAiHoverImage
-                                                  ? const SizedBox(
-                                                      width: 16,
-                                                      height: 16,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                      ),
-                                                    )
-                                                  : const Icon(
-                                                      Icons.auto_awesome),
-                                              label: Text(
-                                                _viewModel
-                                                        .isGeneratingAiHoverImage
-                                                    ? 'Generating Hover Image...'
-                                                    : 'Generate Hover Image',
-                                              ),
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              'Hover image is generated by merging Normal upload + selected Model image.',
-                                              style: GoogleFonts.plusJakartaSans(
-                                                fontSize: 12,
-                                                color: const Color(0xFF4F627E),
-                                              ),
-                                            ),
-                                            if (_viewModel
-                                                    .selectedHoverImageBytes !=
-                                                null) ...[
-                                              const SizedBox(height: 12),
-                                              Text(
-                                                'Generated Hover Preview',
-                                                style:
-                                                    GoogleFonts.plusJakartaSans(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color:
-                                                      const Color(0xFF17355C),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
-                                              ClipRRect(
-                                                borderRadius:
-                                                    BorderRadius.circular(10),
-                                                child: Container(
-                                                  width: double.infinity,
-                                                  height: 240,
-                                                  color: const Color(0xFFF8FAFC),
-                                                  child: Image.memory(
+                                                ],
+                                                const SizedBox(height: 12),
+                                                FilledButton.icon(
+                                                  onPressed: (_viewModel.isSubmitting ||
+                                                          _viewModel.isGeneratingAiHoverImage ||
+                                                          _viewModel.selectedAiModelImageUrl ==
+                                                              null)
+                                                      ? null
+                                                      : () async {
+                                                          final messenger =
+                                                              ScaffoldMessenger.of(
+                                                                  context);
+                                                          final ok = await _viewModel
+                                                              .generateAiHoverImage();
+                                                          if (!mounted) {
+                                                            return;
+                                                          }
+                                                          if (!ok) {
+                                                            final message =
+                                                                _viewModel.errorMessage ??
+                                                                    'Unable to generate hover image.';
+                                                            messenger.showSnackBar(
+                                                              SnackBar(
+                                                                content: Text(message),
+                                                              ),
+                                                            );
+                                                          }
+                                                        },
+                                                  icon: _viewModel
+                                                          .isGeneratingAiHoverImage
+                                                      ? const SizedBox(
+                                                          width: 16,
+                                                          height: 16,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                          ),
+                                                        )
+                                                      : const Icon(
+                                                          Icons.auto_awesome,
+                                                        ),
+                                                  label: Text(
                                                     _viewModel
-                                                        .selectedHoverImageBytes!,
-                                                    fit: BoxFit.contain,
+                                                            .isGeneratingAiHoverImage
+                                                        ? 'Generating Hover Image...'
+                                                        : 'Generate Hover Image',
                                                   ),
                                                 ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  'Hover image is generated by merging Normal upload + selected Model image.',
+                                                  style: GoogleFonts.plusJakartaSans(
+                                                    fontSize: 12,
+                                                    color: const Color(0xFF4F627E),
+                                                  ),
+                                                ),
+                                                if (_viewModel
+                                                        .selectedHoverImageBytes !=
+                                                    null) ...[
+                                                  const SizedBox(height: 12),
+                                                  Text(
+                                                    'Generated Hover Preview',
+                                                    style:
+                                                        GoogleFonts.plusJakartaSans(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w700,
+                                                      color:
+                                                          const Color(0xFF17355C),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(10),
+                                                    child: Container(
+                                                      width: double.infinity,
+                                                      height: 240,
+                                                      color: const Color(0xFFF8FAFC),
+                                                      child: Image.memory(
+                                                        _viewModel
+                                                            .selectedHoverImageBytes!,
+                                                        fit: BoxFit.contain,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _viewModel.descriptionController,
-                                onChanged: _viewModel.onShortDescriptionChanged,
-                                maxLines: 3,
-                                decoration: _fieldDecoration('Short Description')
-                                    .copyWith(alignLabelWithHint: true),
-                                validator: (value) => _viewModel
-                                    .validateRequired(value, 'Short Description'),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _viewModel.longDescriptionController,
-                                onChanged: _viewModel.onLongDescriptionChanged,
-                                maxLines: 4,
-                                decoration: _fieldDecoration('Long Description')
-                                    .copyWith(alignLabelWithHint: true),
-                                validator: (value) => _viewModel
-                                    .validateRequired(value, 'Long Description'),
+                              const SizedBox(height: 16),
+                              _buildSectionCard(
+                                title: 'Descriptions',
+                                subtitle:
+                                    'Auto-generated from the form and editable before save.',
+                                icon: Icons.notes_outlined,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    TextFormField(
+                                      controller: _viewModel.descriptionController,
+                                      onChanged:
+                                          _viewModel.onShortDescriptionChanged,
+                                      maxLines: 3,
+                                      decoration: _fieldDecoration(
+                                        'Short Description',
+                                        hintText:
+                                            'A concise, customer-friendly summary...',
+                                      ).copyWith(alignLabelWithHint: true),
+                                      validator: (value) => _viewModel
+                                          .validateRequired(
+                                              value, 'Short Description'),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextFormField(
+                                      controller:
+                                          _viewModel.longDescriptionController,
+                                      onChanged:
+                                          _viewModel.onLongDescriptionChanged,
+                                      maxLines: 4,
+                                        decoration: _fieldDecoration(
+                                        'Long Description',
+                                        hintText:
+                                          'Detailed craftsmanship, materials, and design notes...',
+                                        ).copyWith(alignLabelWithHint: true),
+                                      validator: (value) => _viewModel
+                                          .validateRequired(
+                                              value, 'Long Description'),
+                                    ),
+                                  ],
+                                ),
                               ),
                               const SizedBox(height: 20),
                               if (_viewModel.isLoadingReferenceData)
@@ -1019,25 +1230,58 @@ class _AddProductViewState extends State<AddProductView> {
                                 ),
                               SizedBox(
                                 width: double.infinity,
-                                child: FilledButton(
-                                  onPressed: _viewModel.isSubmitting
-                                      ? null
-                                      : _submit,
-                                  child: _viewModel.isSubmitting
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : Text(
-                                          'Save Product',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFBF8204),
+                                        Color(0xFFE7BE61),
+                                      ],
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                    ),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x33261100),
+                                        blurRadius: 16,
+                                        offset: Offset(0, 8),
+                                      ),
+                                    ],
+                                  ),
+                                  child: FilledButton.icon(
+                                    onPressed: _viewModel.isSubmitting
+                                        ? null
+                                        : _submit,
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size.fromHeight(58),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                    ),
+                                    icon: _viewModel.isSubmitting
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Icon(Icons.auto_awesome),
+                                    label: Text(
+                                      _viewModel.isSubmitting
+                                          ? 'Saving Product...'
+                                          : 'Save Product',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
