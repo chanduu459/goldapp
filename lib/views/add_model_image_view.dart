@@ -33,7 +33,9 @@ class _ModelImageListItem {
 }
 
 class AddModelImageView extends StatefulWidget {
-  const AddModelImageView({super.key});
+  const AddModelImageView({super.key, this.editModelImageId});
+
+  final int? editModelImageId;
 
   @override
   State<AddModelImageView> createState() => _AddModelImageViewState();
@@ -42,13 +44,19 @@ class AddModelImageView extends StatefulWidget {
 class _AddModelImageViewState extends State<AddModelImageView> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _sortOrderController = TextEditingController(text: '0');
 
   bool _isLoadingCategories = false;
+  bool _isLoadingExisting = false;
   bool _isSaving = false;
+  bool _isActive = true;
   int? _selectedCategoryId;
   List<_CategoryOption> _categories = const [];
   Uint8List? _selectedImageBytes;
   String? _selectedImageName;
+  String? _existingImageUrl;
+
+  bool get _isEditMode => widget.editModelImageId != null;
 
   @override
   void initState() {
@@ -59,6 +67,7 @@ class _AddModelImageViewState extends State<AddModelImageView> {
   @override
   void dispose() {
     _titleController.dispose();
+    _sortOrderController.dispose();
     super.dispose();
   }
 
@@ -158,7 +167,11 @@ class _AddModelImageViewState extends State<AddModelImageView> {
       return;
     }
 
-    await Supabase.instance.client.storage.from(_modelImageBucket).remove([path]);
+    try {
+      await Supabase.instance.client.storage.from(_modelImageBucket).remove([path]);
+    } catch (_) {
+      // Best effort cleanup.
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -191,6 +204,9 @@ class _AddModelImageViewState extends State<AddModelImageView> {
         _categories = mapped;
         _selectedCategoryId = mapped.isNotEmpty ? mapped.first.id : null;
       });
+      if (_isEditMode) {
+        await _loadExistingModelImage();
+      }
     } on PostgrestException {
       final rows = await Supabase.instance.client
           .from('categories')
@@ -215,6 +231,9 @@ class _AddModelImageViewState extends State<AddModelImageView> {
         _categories = mapped;
         _selectedCategoryId = mapped.isNotEmpty ? mapped.first.id : null;
       });
+      if (_isEditMode) {
+        await _loadExistingModelImage();
+      }
     } catch (_) {
       if (!mounted) {
         return;
@@ -226,6 +245,61 @@ class _AddModelImageViewState extends State<AddModelImageView> {
       if (mounted) {
         setState(() {
           _isLoadingCategories = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadExistingModelImage() async {
+    final id = widget.editModelImageId;
+    if (id == null) {
+      return;
+    }
+
+    if (_isLoadingExisting) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingExisting = true;
+    });
+
+    try {
+      final row = await Supabase.instance.client
+          .from('model_images')
+          .select('title, category_id, image_url, is_active, sort_order')
+          .eq('id', id)
+          .single();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _titleController.text = (row['title'] as String? ?? '').trim();
+        _selectedCategoryId = row['category_id'] as int? ?? _selectedCategoryId;
+        _existingImageUrl = (row['image_url'] as String?)?.trim();
+        _isActive = row['is_active'] as bool? ?? true;
+        _sortOrderController.text = ((row['sort_order'] as int?) ?? 0).toString();
+      });
+    } on PostgrestException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to load model image. ${e.message}')),
+      );
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to load model image.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingExisting = false;
         });
       }
     }
@@ -260,25 +334,60 @@ class _AddModelImageViewState extends State<AddModelImageView> {
       _isSaving = true;
     });
 
+    final title = _titleController.text.trim();
+    final sortOrder = int.tryParse(_sortOrderController.text.trim()) ?? 0;
     String? uploadedImageUrl;
 
     try {
-      uploadedImageUrl = await _uploadImageToStorage(
-        title: _titleController.text.trim(),
-      );
+      if (_isEditMode) {
+        final modelImageId = widget.editModelImageId!;
+        final oldImageUrl = (_existingImageUrl ?? '').trim();
 
-      await Supabase.instance.client.from('model_images').insert({
-        'title': _titleController.text.trim(),
-        'category_id': _selectedCategoryId,
-        'image_url': uploadedImageUrl,
-      });
+        if (_selectedImageBytes != null && _selectedImageName != null) {
+          uploadedImageUrl = await _uploadImageToStorage(title: title);
+        }
+
+        final resolvedImageUrl = uploadedImageUrl ?? _existingImageUrl;
+
+        await Supabase.instance.client.from('model_images').update({
+          'title': title,
+          'category_id': _selectedCategoryId,
+          'image_url': (resolvedImageUrl ?? '').trim().isEmpty
+              ? null
+              : resolvedImageUrl,
+          'is_active': _isActive,
+          'sort_order': sortOrder,
+        }).eq('id', modelImageId);
+
+        if (uploadedImageUrl != null &&
+            oldImageUrl.isNotEmpty &&
+            oldImageUrl != uploadedImageUrl) {
+          await _deleteUploadedImage(oldImageUrl);
+        }
+      } else {
+        uploadedImageUrl = await _uploadImageToStorage(title: title);
+
+        await Supabase.instance.client.from('model_images').insert({
+          'title': title,
+          'category_id': _selectedCategoryId,
+          'image_url': uploadedImageUrl,
+          'is_active': _isActive,
+          'sort_order': sortOrder,
+        });
+      }
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Model image added successfully.')),
+        SnackBar(
+          content: Text(
+            _isEditMode
+                ? 'Model image updated successfully.'
+                : 'Model image added successfully.',
+          ),
+        ),
       );
       Navigator.of(context).pop(true);
     } on PostgrestException catch (e) {
@@ -334,7 +443,7 @@ class _AddModelImageViewState extends State<AddModelImageView> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Add Model Image'),
+        title: Text(_isEditMode ? 'Update Model Image' : 'Add Model Image'),
       ),
       body: SafeArea(
         child: Center(
@@ -362,7 +471,9 @@ class _AddModelImageViewState extends State<AddModelImageView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Create Model Image Entry',
+                        _isEditMode
+                            ? 'Update Model Image Entry'
+                            : 'Create Model Image Entry',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -473,15 +584,23 @@ class _AddModelImageViewState extends State<AddModelImageView> {
                                 FilledButton.tonalIcon(
                                   onPressed: _isSaving ? null : _pickImage,
                                   icon: const Icon(Icons.upload_file),
-                                  label: const Text('Choose Image'),
+                                  label: Text(
+                                    (_selectedImageBytes != null ||
+                                            (_existingImageUrl ?? '').trim().isNotEmpty)
+                                        ? 'Change Image'
+                                        : 'Choose Image',
+                                  ),
                                 ),
                                 OutlinedButton.icon(
-                                  onPressed: (_isSaving || _selectedImageBytes == null)
+                                  onPressed: (_isSaving ||
+                                          (_selectedImageBytes == null &&
+                                              (_existingImageUrl ?? '').trim().isEmpty))
                                       ? null
                                       : () {
                                           setState(() {
                                             _selectedImageBytes = null;
                                             _selectedImageName = null;
+                                            _existingImageUrl = null;
                                           });
                                         },
                                   icon: const Icon(Icons.delete),
@@ -512,11 +631,69 @@ class _AddModelImageViewState extends State<AddModelImageView> {
                                     fit: BoxFit.cover,
                                   ),
                                 ),
+                              )
+                            else if ((_existingImageUrl ?? '').trim().isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    _existingImageUrl!,
+                                    height: 170,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      height: 170,
+                                      color: const Color(0xFFF1F5F9),
+                                      alignment: Alignment.center,
+                                      child: const Icon(Icons.broken_image_outlined),
+                                    ),
+                                  ),
+                                ),
                               ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: _sortOrderController,
+                        textInputAction: TextInputAction.done,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Sort Order',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          final text = (value ?? '').trim();
+                          if (text.isEmpty) {
+                            return null;
+                          }
+                          if (int.tryParse(text) == null) {
+                            return 'Sort order must be a number.';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Active model image'),
+                        subtitle: const Text('Controls if this model image is available.'),
+                        value: _isActive,
+                        onChanged: (_isSaving || _isLoadingExisting)
+                            ? null
+                            : (value) {
+                                setState(() {
+                                  _isActive = value;
+                                });
+                              },
+                      ),
                       if (_isLoadingCategories)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: LinearProgressIndicator(minHeight: 3),
+                        ),
+                      if (_isLoadingExisting)
                         const Padding(
                           padding: EdgeInsets.only(top: 12),
                           child: LinearProgressIndicator(minHeight: 3),
@@ -534,8 +711,9 @@ class _AddModelImageViewState extends State<AddModelImageView> {
                         width: double.infinity,
                         child: FilledButton.icon(
                             onPressed: (_isSaving ||
+                              _isLoadingExisting ||
                               _categories.isEmpty ||
-                              _selectedImageBytes == null)
+                              (!_isEditMode && _selectedImageBytes == null))
                               ? null
                               : _saveModelImage,
                           icon: _isSaving
@@ -545,7 +723,11 @@ class _AddModelImageViewState extends State<AddModelImageView> {
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.add_photo_alternate_outlined),
-                          label: Text(_isSaving ? 'Saving...' : 'Add Model Image'),
+                          label: Text(
+                            _isSaving
+                                ? 'Saving...'
+                                : (_isEditMode ? 'Update Model Image' : 'Add Model Image'),
+                          ),
                         ),
                       ),
                     ],

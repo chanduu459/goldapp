@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'add_metal_view.dart';
+
 class ViewModifyMetalsView extends StatefulWidget {
   const ViewModifyMetalsView({super.key});
 
@@ -84,130 +86,11 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
   }
 
   Future<void> _openEditDialog(_MetalItem item) async {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: item.name);
-    final unitController = TextEditingController(text: item.unit);
-    var isUpdatingDialog = false;
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Update Metal'),
-              content: SizedBox(
-                width: MediaQuery.sizeOf(dialogContext).width < 500
-                    ? MediaQuery.sizeOf(dialogContext).width - 48
-                    : 420,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Metal Name',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Metal Name is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: unitController,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Unit is required';
-                            }
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isUpdatingDialog
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: isUpdatingDialog
-                      ? null
-                      : () async {
-                    final isValid = formKey.currentState?.validate() ?? false;
-                    if (!isValid) {
-                      return;
-                    }
-
-                    setStateDialog(() {
-                      isUpdatingDialog = true;
-                    });
-
-                    try {
-                      await Supabase.instance.client.from('metals').update({
-                        'name': nameController.text.trim(),
-                        'unit': unitController.text.trim(),
-                      }).eq('id', item.id);
-
-                      if (!dialogContext.mounted) {
-                        return;
-                      }
-
-                      Navigator.of(dialogContext).pop(true);
-                    } on PostgrestException catch (e) {
-                      if (!dialogContext.mounted) {
-                        return;
-                      }
-                      setStateDialog(() {
-                        isUpdatingDialog = false;
-                      });
-                      ScaffoldMessenger.of(dialogContext).showSnackBar(
-                        SnackBar(content: Text(e.message)),
-                      );
-                    } catch (_) {
-                      if (!dialogContext.mounted) {
-                        return;
-                      }
-                      setStateDialog(() {
-                        isUpdatingDialog = false;
-                      });
-                      ScaffoldMessenger.of(dialogContext).showSnackBar(
-                        const SnackBar(content: Text('Unable to update metal.')),
-                      );
-                    }
-                  },
-                  child: isUpdatingDialog
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddMetalView(editMetalId: item.id),
+      ),
     );
-
-    await WidgetsBinding.instance.endOfFrame;
-
-    nameController.dispose();
-    unitController.dispose();
 
     if (!mounted || saved != true) {
       return;

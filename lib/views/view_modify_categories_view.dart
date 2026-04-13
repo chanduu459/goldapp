@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'add_category_view.dart';
+
 class ViewModifyCategoriesView extends StatefulWidget {
   const ViewModifyCategoriesView({super.key});
 
@@ -98,156 +100,11 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
   }
 
   Future<void> _openEditDialog(_CategoryItem item) async {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: item.name);
-    final slugController = TextEditingController(text: item.slug);
-    final descriptionController = TextEditingController(
-      text: item.description ?? '',
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddCategoryView(editCategoryId: item.id),
+      ),
     );
-    final imageUrlController = TextEditingController(text: item.imageUrl ?? '');
-    final sortOrderController = TextEditingController(
-      text: item.sortOrder.toString(),
-    );
-    var isActive = item.isActive;
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: const Text('Update Category'),
-              content: SizedBox(
-                width: MediaQuery.sizeOf(dialogContext).width < 500
-                    ? MediaQuery.sizeOf(dialogContext).width - 48
-                    : 420,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Category Name',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Category Name is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: slugController,
-                          decoration: const InputDecoration(
-                            labelText: 'Slug',
-                          ),
-                          validator: (value) {
-                            final text = (value ?? '').trim().toLowerCase();
-                            if (text.isEmpty) {
-                              return 'Slug is required';
-                            }
-                            if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(text)) {
-                              return 'Use lowercase letters, numbers and hyphens only.';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: descriptionController,
-                          minLines: 2,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: 'Description (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: imageUrlController,
-                          keyboardType: TextInputType.url,
-                          decoration: const InputDecoration(
-                            labelText: 'Image URL (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: sortOrderController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Sort Order',
-                          ),
-                          validator: (value) {
-                            if (int.tryParse((value ?? '').trim()) == null) {
-                              return 'Enter a valid number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Active Category'),
-                          value: isActive,
-                          onChanged: (value) {
-                            setDialogState(() {
-                              isActive = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    final isValid = formKey.currentState?.validate() ?? false;
-                    if (!isValid) {
-                      return;
-                    }
-
-                    final sortOrder = int.parse(sortOrderController.text.trim());
-                    final success = await _updateCategory(
-                      id: item.id,
-                      name: nameController.text,
-                      slug: slugController.text,
-                      description: descriptionController.text,
-                      imageUrl: imageUrlController.text,
-                      isActive: isActive,
-                      sortOrder: sortOrder,
-                    );
-
-                    if (!dialogContext.mounted) {
-                      return;
-                    }
-
-                    if (success) {
-                      Navigator.of(dialogContext).pop(true);
-                    }
-                  },
-                  child: const Text('Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    nameController.dispose();
-    slugController.dispose();
-    descriptionController.dispose();
-    imageUrlController.dispose();
-    sortOrderController.dispose();
 
     if (!mounted || saved != true) {
       return;

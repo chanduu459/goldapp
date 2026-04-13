@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddMetalView extends StatefulWidget {
-  const AddMetalView({super.key});
+  const AddMetalView({super.key, this.editMetalId});
+
+  final String? editMetalId;
 
   @override
   State<AddMetalView> createState() => _AddMetalViewState();
@@ -15,7 +17,18 @@ class _AddMetalViewState extends State<AddMetalView> {
   final _unitController = TextEditingController();
 
   bool _isSaving = false;
+  bool _isLoadingExisting = false;
   String? _errorMessage;
+
+  bool get _isEditMode => widget.editMetalId != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode) {
+      _loadExistingMetal();
+    }
+  }
 
   @override
   void dispose() {
@@ -24,9 +37,58 @@ class _AddMetalViewState extends State<AddMetalView> {
     super.dispose();
   }
 
+  Future<void> _loadExistingMetal() async {
+    final id = widget.editMetalId;
+    if (id == null || _isLoadingExisting) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingExisting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final row = await Supabase.instance.client
+          .from('metals')
+          .select('name, unit')
+          .eq('id', id)
+          .single();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _nameController.text = (row['name'] as String? ?? '').trim();
+        _unitController.text = (row['unit'] as String? ?? '').trim();
+      });
+    } on PostgrestException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = 'Unable to load metal.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingExisting = false;
+        });
+      }
+    }
+  }
+
   Future<void> _saveMetal() async {
     final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid || _isSaving) {
+    if (!isValid || _isSaving || _isLoadingExisting) {
       return;
     }
 
@@ -36,21 +98,36 @@ class _AddMetalViewState extends State<AddMetalView> {
     });
 
     try {
-      await Supabase.instance.client.from('metals').insert({
-        'name': _nameController.text.trim(),
-        'unit': _unitController.text.trim(),
-      });
+      if (_isEditMode) {
+        await Supabase.instance.client.from('metals').update({
+          'name': _nameController.text.trim(),
+          'unit': _unitController.text.trim(),
+        }).eq('id', widget.editMetalId!);
+      } else {
+        await Supabase.instance.client.from('metals').insert({
+          'name': _nameController.text.trim(),
+          'unit': _unitController.text.trim(),
+        });
+      }
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Metal added successfully.')),
+        SnackBar(
+          content: Text(
+            _isEditMode ? 'Metal updated successfully.' : 'Metal added successfully.',
+          ),
+        ),
       );
 
-      _nameController.clear();
-      _unitController.clear();
+      if (_isEditMode) {
+        Navigator.of(context).pop(true);
+      } else {
+        _nameController.clear();
+        _unitController.clear();
+      }
     } on PostgrestException catch (e) {
       if (!mounted) {
         return;
@@ -99,7 +176,7 @@ class _AddMetalViewState extends State<AddMetalView> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Add Metal',
+                        _isEditMode ? 'Update Metal' : 'Add Metal',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.plusJakartaSans(
@@ -113,6 +190,7 @@ class _AddMetalViewState extends State<AddMetalView> {
                 ),
               ),
               if (_isSaving) const LinearProgressIndicator(minHeight: 2),
+              if (_isLoadingExisting) const LinearProgressIndicator(minHeight: 2),
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.all(12),
@@ -175,9 +253,11 @@ class _AddMetalViewState extends State<AddMetalView> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed: _isSaving ? null : _saveMetal,
+                                onPressed: (_isSaving || _isLoadingExisting)
+                                    ? null
+                                    : _saveMetal,
                                 icon: const Icon(Icons.save_outlined),
-                                label: const Text('Save Metal'),
+                                label: Text(_isEditMode ? 'Update Metal' : 'Save Metal'),
                               ),
                             ),
                           ],

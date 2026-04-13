@@ -3,7 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddMetalPriceView extends StatefulWidget {
-  const AddMetalPriceView({super.key});
+  const AddMetalPriceView({super.key, this.editMetalPriceId});
+
+  final String? editMetalPriceId;
 
   @override
   State<AddMetalPriceView> createState() => _AddMetalPriceViewState();
@@ -28,12 +30,15 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
   final _priceController = TextEditingController();
 
   bool _isLoadingMetals = false;
+  bool _isLoadingExisting = false;
   bool _isSaving = false;
   String? _errorMessage;
 
   List<_MetalOption> _metals = const [];
   String? _selectedMetalId;
   DateTime _selectedDate = DateTime.now();
+
+  bool get _isEditMode => widget.editMetalPriceId != null;
 
   @override
   void initState() {
@@ -52,6 +57,139 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
+  }
+
+  String? _legacyProductMetalTypeFromName(String metalName) {
+    final normalized = metalName.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    if (normalized.contains('white') && normalized.contains('gold')) {
+      return 'White Gold';
+    }
+    if (normalized.contains('rose') && normalized.contains('gold')) {
+      return 'Rose Gold';
+    }
+    if (normalized.contains('platinum')) {
+      return 'Platinum';
+    }
+    if (normalized.contains('silver')) {
+      return 'Silver';
+    }
+    if (normalized.contains('gold')) {
+      return 'Gold';
+    }
+
+    return null;
+  }
+
+  String? _legacyProductMetalTypeFromMetalId(String metalId) {
+    for (final metal in _metals) {
+      if (metal.id == metalId) {
+        return _legacyProductMetalTypeFromName(metal.name);
+      }
+    }
+    return null;
+  }
+
+  double? _extractWeightInGrams(String? description, String? longDescription) {
+    final longText = (longDescription ?? '').trim();
+    final shortText = (description ?? '').trim();
+
+    final detailedPattern = RegExp(
+      r'Weight:\s*([0-9]+(?:\.[0-9]+)?)\s*g',
+      caseSensitive: false,
+    );
+    final compactPattern = RegExp(
+      r'([0-9]+(?:\.[0-9]+)?)\s*g',
+      caseSensitive: false,
+    );
+
+    final detailedMatch = detailedPattern.firstMatch(longText);
+    if (detailedMatch != null) {
+      final parsed = double.tryParse(detailedMatch.group(1) ?? '');
+      if (parsed != null && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    final compactLongMatch = compactPattern.firstMatch(longText);
+    if (compactLongMatch != null) {
+      final parsed = double.tryParse(compactLongMatch.group(1) ?? '');
+      if (parsed != null && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    final compactShortMatch = compactPattern.firstMatch(shortText);
+    if (compactShortMatch != null) {
+      final parsed = double.tryParse(compactShortMatch.group(1) ?? '');
+      if (parsed != null && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _syncProductsForMetalPrice({
+    required String metalId,
+    required double unitPrice,
+  }) async {
+    if (unitPrice <= 0) {
+      return;
+    }
+
+    final legacyMetalType = _legacyProductMetalTypeFromMetalId(metalId);
+    if (legacyMetalType == null) {
+      return;
+    }
+
+    final client = Supabase.instance.client;
+
+    final productMetalRows = await client
+        .from('product_metals')
+        .select('product_id')
+        .eq('metal_type', legacyMetalType)
+        .eq('is_available', true);
+
+    final productIds = (productMetalRows as List<dynamic>)
+        .map((row) => row['product_id'] as int?)
+        .whereType<int>()
+        .toSet()
+        .toList(growable: false);
+
+    if (productIds.isEmpty) {
+      return;
+    }
+
+    final productRows = await client
+        .from('products')
+        .select('id, description, long_description')
+        .inFilter('id', productIds);
+
+    for (final row in (productRows as List<dynamic>)) {
+      final productId = row['id'] as int?;
+      if (productId == null) {
+        continue;
+      }
+
+      final weightInGrams = _extractWeightInGrams(
+        row['description'] as String?,
+        row['long_description'] as String?,
+      );
+      if (weightInGrams == null || weightInGrams <= 0) {
+        continue;
+      }
+
+      final recalculatedPrice =
+          double.parse((weightInGrams * unitPrice).toStringAsFixed(2));
+
+      await client
+          .from('products')
+          .update({'original_price': recalculatedPrice}).eq('id', productId);
+    }
   }
 
   Future<void> _loadMetals() async {
@@ -84,6 +222,9 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
           _selectedMetalId = mapped.first.id;
         }
       });
+      if (_isEditMode) {
+        await _loadExistingMetalPrice();
+      }
     } on PostgrestException catch (e) {
       if (!mounted) {
         return;
@@ -102,6 +243,56 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
       if (mounted) {
         setState(() {
           _isLoadingMetals = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadExistingMetalPrice() async {
+    final id = widget.editMetalPriceId;
+    if (id == null || _isLoadingExisting) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingExisting = true;
+    });
+
+    try {
+      final row = await Supabase.instance.client
+          .from('metal_prices')
+          .select('metal_id, price, price_date')
+          .eq('id', id)
+          .single();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedMetalId = row['metal_id'] as String? ?? _selectedMetalId;
+        _priceController.text = ((row['price'] as num?) ?? 0).toDouble().toStringAsFixed(2);
+        _selectedDate =
+            DateTime.tryParse(row['price_date'] as String? ?? '') ?? DateTime.now();
+      });
+    } on PostgrestException catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = e.message;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = 'Unable to load metal price.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingExisting = false;
         });
       }
     }
@@ -126,7 +317,7 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
 
   Future<void> _saveMetalPrice() async {
     final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid || _isSaving || _selectedMetalId == null) {
+    if (!isValid || _isSaving || _isLoadingExisting || _selectedMetalId == null) {
       return;
     }
 
@@ -138,24 +329,47 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     });
 
     try {
-      await Supabase.instance.client.from('metal_prices').insert({
-        'metal_id': _selectedMetalId,
-        'price': parsedPrice,
-        'price_date': _formatDate(_selectedDate),
-      });
+      if (_isEditMode) {
+        await Supabase.instance.client.from('metal_prices').update({
+          'metal_id': _selectedMetalId,
+          'price': parsedPrice,
+          'price_date': _formatDate(_selectedDate),
+        }).eq('id', widget.editMetalPriceId!);
+
+        await _syncProductsForMetalPrice(
+          metalId: _selectedMetalId!,
+          unitPrice: parsedPrice,
+        );
+      } else {
+        await Supabase.instance.client.from('metal_prices').insert({
+          'metal_id': _selectedMetalId,
+          'price': parsedPrice,
+          'price_date': _formatDate(_selectedDate),
+        });
+      }
 
       if (!mounted) {
         return;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Metal price added successfully.')),
+        SnackBar(
+          content: Text(
+            _isEditMode
+                ? 'Metal price updated successfully.'
+                : 'Metal price added successfully.',
+          ),
+        ),
       );
 
-      _priceController.clear();
-      setState(() {
-        _selectedDate = DateTime.now();
-      });
+      if (_isEditMode) {
+        Navigator.of(context).pop(true);
+      } else {
+        _priceController.clear();
+        setState(() {
+          _selectedDate = DateTime.now();
+        });
+      }
     } on PostgrestException catch (e) {
       if (!mounted) {
         return;
@@ -204,7 +418,7 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Add Metal Price',
+                        _isEditMode ? 'Update Metal Price' : 'Add Metal Price',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.plusJakartaSans(
@@ -223,6 +437,8 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
                 ),
               ),
               if (_isSaving || _isLoadingMetals)
+                const LinearProgressIndicator(minHeight: 2),
+              if (_isLoadingExisting)
                 const LinearProgressIndicator(minHeight: 2),
               if (_errorMessage != null)
                 Padding(
@@ -258,7 +474,7 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             DropdownButtonFormField<String>(
-                              value: _selectedMetalId,
+                              initialValue: _selectedMetalId,
                               items: _metals
                                   .map(
                                     (metal) => DropdownMenuItem<String>(
@@ -268,6 +484,8 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
                                   )
                                   .toList(growable: false),
                               onChanged: _isSaving
+                                  ? null
+                                  : _isLoadingExisting
                                   ? null
                                   : (value) {
                                       setState(() {
@@ -307,7 +525,9 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
                               title: const Text('Price Date'),
                               subtitle: Text(_formatDate(_selectedDate)),
                               trailing: OutlinedButton.icon(
-                                onPressed: _isSaving ? null : _pickDate,
+                                onPressed: (_isSaving || _isLoadingExisting)
+                                    ? null
+                                    : _pickDate,
                                 icon: const Icon(Icons.calendar_today_outlined),
                                 label: const Text('Choose'),
                               ),
@@ -324,11 +544,13 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton.icon(
-                                onPressed: _isSaving || _metals.isEmpty
+                                onPressed: _isSaving || _isLoadingExisting || _metals.isEmpty
                                     ? null
                                     : _saveMetalPrice,
                                 icon: const Icon(Icons.save_outlined),
-                                label: const Text('Save Metal Price'),
+                                label: Text(
+                                  _isEditMode ? 'Update Metal Price' : 'Save Metal Price',
+                                ),
                               ),
                             ),
                           ],

@@ -54,10 +54,13 @@ enum ProductImageType { primary, hover }
 enum ProductImageInputMode { manual, ai }
 
 class AddProductViewModel extends ChangeNotifier {
-  AddProductViewModel() {
+  AddProductViewModel({this.editProductId}) {
     _attachAutoDescriptionListeners();
     _refreshAutoDescriptions(notify: false);
   }
+
+  final int? editProductId;
+  bool get isEditMode => editProductId != null;
 
   final formKey = GlobalKey<FormState>();
 
@@ -79,6 +82,11 @@ class AddProductViewModel extends ChangeNotifier {
   bool isSubmitting = false;
   bool isLoadingReferenceData = false;
   String? errorMessage;
+  bool _loadedEditProduct = false;
+  bool _isHydratingEditProduct = false;
+
+  String? existingPrimaryImageUrl;
+  String? existingHoverImageUrl;
 
   Uint8List? selectedPrimaryImageBytes;
   String? selectedPrimaryImageName;
@@ -136,16 +144,93 @@ class AddProductViewModel extends ChangeNotifier {
     weightController.addListener(_autoFillOriginalPriceFromWeight);
   }
 
-  String? _selectedMetalId() {
+  String _normalizeMetalKey(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+  }
+
+  MetalTypeOption? _findBestMetalOption(String value) {
+    final input = value.trim();
+    if (input.isEmpty || metalTypes.isEmpty) {
+      return null;
+    }
+
     for (final metal in metalTypes) {
-      if (metal.name == selectedMetalType) {
-        return metal.id;
+      if (metal.name == input) {
+        return metal;
       }
     }
+
+    final lowered = input.toLowerCase();
+    for (final metal in metalTypes) {
+      if (metal.name.toLowerCase() == lowered) {
+        return metal;
+      }
+    }
+
+    final normalized = _normalizeMetalKey(input);
+    for (final metal in metalTypes) {
+      if (_normalizeMetalKey(metal.name) == normalized) {
+        return metal;
+      }
+    }
+
+    if (normalized.contains('white') && normalized.contains('gold')) {
+      for (final metal in metalTypes) {
+        final key = _normalizeMetalKey(metal.name);
+        if (key.contains('white') && key.contains('gold')) {
+          return metal;
+        }
+      }
+    }
+
+    if (normalized.contains('rose') && normalized.contains('gold')) {
+      for (final metal in metalTypes) {
+        final key = _normalizeMetalKey(metal.name);
+        if (key.contains('rose') && key.contains('gold')) {
+          return metal;
+        }
+      }
+    }
+
+    if (normalized.contains('platinum')) {
+      for (final metal in metalTypes) {
+        final key = _normalizeMetalKey(metal.name);
+        if (key.contains('platinum')) {
+          return metal;
+        }
+      }
+    }
+
+    if (normalized.contains('silver')) {
+      for (final metal in metalTypes) {
+        final key = _normalizeMetalKey(metal.name);
+        if (key.contains('silver')) {
+          return metal;
+        }
+      }
+    }
+
+    if (normalized.contains('gold')) {
+      for (final metal in metalTypes) {
+        final key = _normalizeMetalKey(metal.name);
+        if (key.contains('gold')) {
+          return metal;
+        }
+      }
+    }
+
     return null;
   }
 
+  String? _selectedMetalId() {
+    return _findBestMetalOption(selectedMetalType)?.id;
+  }
+
   void _autoFillOriginalPriceFromWeight() {
+    if (_isHydratingEditProduct) {
+      return;
+    }
+
     final weightText = weightController.text.trim();
     if (weightText.isEmpty) {
       _setControllerText(originalPriceController, '');
@@ -210,9 +295,8 @@ class AddProductViewModel extends ChangeNotifier {
     final name = nameController.text.trim();
     final purity = purityController.text.trim();
     final weight = weightController.text.trim();
-    final ringSize = ringSizeController.text.trim();
 
-    if (name.isEmpty && purity.isEmpty && weight.isEmpty && ringSize.isEmpty) {
+    if (name.isEmpty && purity.isEmpty && weight.isEmpty) {
       return 'Product details will be generated from the form fields.';
     }
 
@@ -227,9 +311,6 @@ class AddProductViewModel extends ChangeNotifier {
     }
     if (weight.isNotEmpty) {
       parts.add('${weight}g');
-    }
-    if (ringSize.isNotEmpty) {
-      parts.add('Ring Size $ringSize');
     }
 
     return parts.join(' | ');
@@ -246,11 +327,6 @@ class AddProductViewModel extends ChangeNotifier {
     final collectionName = _collectionName();
     if (collectionName != 'No collection') {
       lines.add('Collection: $collectionName');
-    }
-
-    final basePrice = basePriceController.text.trim();
-    if (basePrice.isNotEmpty) {
-      lines.add('Base Price: $basePrice');
     }
 
     final originalPrice = originalPriceController.text.trim();
@@ -282,19 +358,9 @@ class AddProductViewModel extends ChangeNotifier {
       lines.add('Diamond Type: $selectedDiamondType');
     }
 
-    final ringSize = ringSizeController.text.trim();
-    if (ringSize.isNotEmpty) {
-      lines.add('Ring Size: $ringSize');
-    }
-
     final caratWeight = caratWeightController.text.trim();
     if (caratWeight.isNotEmpty) {
       lines.add('Total Carat Weight: $caratWeight');
-    }
-
-    final stockNumber = stockNumberController.text.trim();
-    if (stockNumber.isNotEmpty) {
-      lines.add('Stock Number: $stockNumber');
     }
 
     final width = widthController.text.trim();
@@ -463,6 +529,10 @@ class AddProductViewModel extends ChangeNotifier {
         selectedCategoryId ??= categories.first.id;
       }
 
+      if (isEditMode && !_loadedEditProduct) {
+        await _loadEditProduct();
+      }
+
       await _loadModelImagesForCategory(selectedCategoryId);
 
       if (categories.isEmpty) {
@@ -477,6 +547,180 @@ class AddProductViewModel extends ChangeNotifier {
     isLoadingReferenceData = false;
     _refreshAutoDescriptions(notify: false);
     notifyListeners();
+  }
+
+  double? _extractDecimalFromDescription(String source, String label) {
+    final pattern = RegExp(
+      '$label\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)',
+      caseSensitive: false,
+    );
+    final match = pattern.firstMatch(source);
+    if (match == null) {
+      return null;
+    }
+    return double.tryParse(match.group(1) ?? '');
+  }
+
+  int? _extractIntFromPurity(String value) {
+    final match = RegExp(r'(\d{1,2})').firstMatch(value);
+    if (match == null) {
+      return null;
+    }
+    return int.tryParse(match.group(1) ?? '');
+  }
+
+  Future<void> _loadEditProduct() async {
+    final id = editProductId;
+    if (id == null) {
+      return;
+    }
+
+    final row = await Supabase.instance.client
+        .from('products')
+        .select(
+          'id, name, category_id, collection_id, base_price, original_price, image_url, hover_image_url, description, long_description, stock_quantity, is_new, is_best_seller, is_engravable, is_active, metaltype, product_metals(metal_type,purity), ring_sizes(size_label,size_number), product_variants(metal,carat,diamond_type,ring_size,barcode), product_options(option_type,option_value)',
+        )
+        .eq('id', id)
+        .single();
+
+    final metalRows = row['product_metals'] as List<dynamic>? ?? const [];
+    final ringSizeRows = row['ring_sizes'] as List<dynamic>? ?? const [];
+    final variantRows = row['product_variants'] as List<dynamic>? ?? const [];
+    final optionRows = row['product_options'] as List<dynamic>? ?? const [];
+
+    final metalData = metalRows.isNotEmpty && metalRows.first is Map<String, dynamic>
+        ? metalRows.first as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final ringSizeData = ringSizeRows.isNotEmpty && ringSizeRows.first is Map<String, dynamic>
+        ? ringSizeRows.first as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final variantData = variantRows.isNotEmpty && variantRows.first is Map<String, dynamic>
+        ? variantRows.first as Map<String, dynamic>
+        : const <String, dynamic>{};
+
+    Map<String, dynamic>? firstOptionByType(String type) {
+      for (final row in optionRows) {
+        if (row is Map<String, dynamic>) {
+          final optionType = (row['option_type'] as String? ?? '').trim().toLowerCase();
+          if (optionType == type.toLowerCase()) {
+            return row;
+          }
+        }
+      }
+      return null;
+    }
+
+    final metalOption = firstOptionByType('metal');
+    final diamondOption = firstOptionByType('diamond_type');
+
+    final longDescription = (row['long_description'] as String? ?? '').trim();
+    final purityRaw = (metalData['purity'] as String? ?? '').trim();
+    final purityKarat = _extractIntFromPurity(purityRaw);
+    final weightFromDescription =
+        _extractDecimalFromDescription(longDescription, 'Weight');
+    final makingChargeFromDescription =
+        _extractDecimalFromDescription(longDescription, 'Making Charge');
+    final widthFromDescription =
+        _extractDecimalFromDescription(longDescription, 'Width');
+    final originalPriceFromDescription =
+      _extractDecimalFromDescription(longDescription, 'Original Price');
+
+    _isHydratingEditProduct = true;
+    try {
+      nameController.text = (row['name'] as String? ?? '').trim();
+      selectedCategoryId = row['category_id'] as int?;
+      selectedCollectionId = row['collection_id'] as int?;
+      if (selectedCollectionId != null) {
+        final match = collections.where((item) => item.id == selectedCollectionId);
+        if (match.isNotEmpty) {
+          collectionController.text = match.first.name;
+        }
+      }
+
+      basePriceController.text =
+          ((row['base_price'] as num?) ?? 0).toDouble().toStringAsFixed(2);
+        final rawOriginalPrice =
+          ((row['original_price'] as num?) ?? (row['base_price'] as num?) ?? 0)
+            .toDouble();
+        final resolvedOriginalPrice = rawOriginalPrice > 0
+          ? rawOriginalPrice
+          : (originalPriceFromDescription ?? 0);
+        originalPriceController.text = resolvedOriginalPrice.toStringAsFixed(2);
+      stockQuantityController.text =
+          (((row['stock_quantity'] as num?) ?? 0).toInt()).toString();
+
+      descriptionController.text = (row['description'] as String? ?? '').trim();
+      longDescriptionController.text = longDescription;
+
+        final metalType = (metalData['metal_type'] as String? ?? '').trim();
+        final metalTypeFromOption =
+          (metalOption?['option_value'] as String? ?? '').trim();
+        final metalTypeFromVariant =
+          (variantData['metal'] as String? ?? '').trim();
+        final metalTypeFromProduct = (row['metaltype'] as String? ?? '').trim();
+        final resolvedMetalType = metalTypeFromProduct.isNotEmpty
+          ? metalTypeFromProduct
+          : (metalTypeFromOption.isNotEmpty
+            ? metalTypeFromOption
+            : (metalTypeFromVariant.isNotEmpty
+              ? metalTypeFromVariant
+              : (metalType.isNotEmpty ? metalType : selectedMetalType)));
+        selectedMetalType = _findBestMetalOption(resolvedMetalType)?.name ??
+          resolvedMetalType;
+
+      if (!metalTypes.any((item) => item.name == selectedMetalType)) {
+        metalTypes = [
+          ...metalTypes,
+          MetalTypeOption(
+            id: 'legacy-${_slugify(selectedMetalType)}',
+            name: selectedMetalType,
+            unit: 'gram',
+          ),
+        ];
+      }
+
+      purityController.text = (purityKarat ?? 22).toString();
+      weightController.text = (weightFromDescription ?? 1).toStringAsFixed(3);
+      makingChargeController.text =
+          (makingChargeFromDescription ?? 1).toStringAsFixed(2);
+
+      ringSizeController.text =
+          ((ringSizeData['size_label'] as String?) ??
+                  (variantData['ring_size'] as String?) ??
+                  '')
+              .trim();
+      final carat = (variantData['carat'] as num?)?.toDouble() ?? 0;
+      caratWeightController.text = carat == 0 ? '' : carat.toString();
+      final diamondType =
+          (variantData['diamond_type'] as String? ?? '').trim();
+      final diamondTypeFromOption =
+          (diamondOption?['option_value'] as String? ?? '').trim();
+      final resolvedDiamondType = diamondType.isNotEmpty
+          ? diamondType
+          : (diamondTypeFromOption.isNotEmpty ? diamondTypeFromOption : 'None');
+      selectedDiamondType = resolvedDiamondType;
+      hasDiamond = selectedDiamondType.toLowerCase() != 'none';
+
+      stockNumberController.text =
+          (variantData['barcode'] as String? ?? '').trim();
+      widthController.text = widthFromDescription == null
+          ? ''
+          : widthFromDescription.toStringAsFixed(2);
+
+      isNew = row['is_new'] as bool? ?? false;
+      isBestSeller = row['is_best_seller'] as bool? ?? false;
+      isEngravable = row['is_engravable'] as bool? ?? false;
+      isActive = row['is_active'] as bool? ?? true;
+
+      existingPrimaryImageUrl = (row['image_url'] as String?)?.trim();
+      existingHoverImageUrl = (row['hover_image_url'] as String?)?.trim();
+    } finally {
+      _isHydratingEditProduct = false;
+    }
+
+    _loadedEditProduct = true;
+    _autoFillOriginalPriceFromWeight();
+    _refreshAutoDescriptions(notify: false);
   }
 
   void setSelectedCategory(int? value) {
@@ -596,7 +840,9 @@ class AddProductViewModel extends ChangeNotifier {
     if (value == null) {
       return;
     }
-    selectedMetalType = value;
+
+    final bestMatch = _findBestMetalOption(value);
+    selectedMetalType = bestMatch?.name ?? value;
     _autoFillOriginalPriceFromWeight();
     _refreshAutoDescriptions(notify: false);
     notifyListeners();
@@ -946,14 +1192,14 @@ class AddProductViewModel extends ChangeNotifier {
     final configuredModel = dotenv.env['OPENROUTER_IMAGE_MODEL']?.trim() ?? '';
     final configuredMaxTokens =
         int.tryParse(dotenv.env['OPENROUTER_MAX_TOKENS']?.trim() ?? '') ?? 512;
-    final tokenCandidates = <int>[
+    final tokenCandidates = {
       if (configuredMaxTokens > 0) configuredMaxTokens,
       512,
       256,
       128,
-    ].toSet().toList(growable: false);
+    }.toList(growable: false);
 
-    final modelCandidates = <String>[
+    final modelCandidates = [
       if (configuredModel.isNotEmpty) configuredModel,
       'openai/gpt-image-1',
       'openrouter/auto',
@@ -1316,7 +1562,11 @@ class AddProductViewModel extends ChangeNotifier {
       return;
     }
 
-    await Supabase.instance.client.storage.from(_productBucket).remove([path]);
+    try {
+      await Supabase.instance.client.storage.from(_productBucket).remove([path]);
+    } catch (_) {
+      // Best effort cleanup.
+    }
   }
 
   Future<void> _rollbackProductData(int productId) async {
@@ -1327,6 +1577,406 @@ class AddProductViewModel extends ChangeNotifier {
     await client.from('ring_sizes').delete().eq('product_id', productId);
     await client.from('product_metals').delete().eq('product_id', productId);
     await client.from('products').delete().eq('id', productId);
+  }
+
+  Future<void> _upsertProductMetal({
+    required SupabaseClient client,
+    required int productId,
+    required String metalType,
+    required String purity,
+  }) async {
+    final rows = await client
+        .from('product_metals')
+        .select('id')
+        .eq('product_id', productId)
+        .limit(1);
+
+    if ((rows as List<dynamic>).isEmpty) {
+      await client.from('product_metals').insert({
+        'product_id': productId,
+        'metal_type': metalType,
+        'purity': purity,
+        'is_available': true,
+      });
+      return;
+    }
+
+    final id = rows.first['id'] as int;
+    await client.from('product_metals').update({
+      'metal_type': metalType,
+      'purity': purity,
+      'is_available': true,
+    }).eq('id', id);
+  }
+
+  Future<void> _upsertRingSize({
+    required SupabaseClient client,
+    required int productId,
+    required String ringSize,
+  }) async {
+    final rows = await client
+        .from('ring_sizes')
+        .select('id')
+        .eq('product_id', productId)
+        .limit(1);
+
+    final normalizedRingSize = ringSize.trim().isEmpty ? 'N/A' : ringSize.trim();
+
+    if ((rows as List<dynamic>).isEmpty) {
+      await client.from('ring_sizes').insert({
+        'product_id': productId,
+        'size_label': normalizedRingSize,
+        'size_number': double.tryParse(normalizedRingSize),
+        'is_available': true,
+      });
+      return;
+    }
+
+    final id = rows.first['id'] as int;
+    await client.from('ring_sizes').update({
+      'size_label': normalizedRingSize,
+      'size_number': double.tryParse(normalizedRingSize),
+      'is_available': true,
+    }).eq('id', id);
+  }
+
+  Future<void> _upsertVariant({
+    required SupabaseClient client,
+    required int productId,
+    required String sku,
+    required String metalType,
+    required double caratWeight,
+    required String diamondType,
+    required String ringSize,
+    required int stockQuantity,
+    required String stockNumber,
+    required bool isActive,
+  }) async {
+    final rows = await client
+        .from('product_variants')
+        .select('id, sku')
+        .eq('product_id', productId)
+        .limit(1);
+
+    final normalizedRingSize = ringSize.trim().isEmpty ? 'N/A' : ringSize.trim();
+    final normalizedStockNumber =
+        stockNumber.trim().isEmpty ? 'N/A' : stockNumber.trim();
+
+    if ((rows as List<dynamic>).isEmpty) {
+      await client.from('product_variants').insert({
+        'product_id': productId,
+        'sku': '$sku-V1',
+        'metal': metalType,
+        'carat': caratWeight,
+        'diamond_type': diamondType,
+        'ring_size': normalizedRingSize,
+        'stock_quantity': stockQuantity,
+        'barcode': normalizedStockNumber,
+        'is_active': isActive,
+      });
+      return;
+    }
+
+    final id = rows.first['id'] as int;
+    await client.from('product_variants').update({
+      'metal': metalType,
+      'carat': caratWeight,
+      'diamond_type': diamondType,
+      'ring_size': normalizedRingSize,
+      'stock_quantity': stockQuantity,
+      'barcode': normalizedStockNumber,
+      'is_active': isActive,
+    }).eq('id', id);
+  }
+
+  Future<void> _upsertProductOption({
+    required SupabaseClient client,
+    required int productId,
+    required String optionType,
+    required String optionName,
+    required String optionValue,
+    required int sortOrder,
+  }) async {
+    final rows = await client
+        .from('product_options')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('option_type', optionType)
+        .limit(1);
+
+    if ((rows as List<dynamic>).isEmpty) {
+      await client.from('product_options').insert({
+        'product_id': productId,
+        'option_type': optionType,
+        'option_name': optionName,
+        'option_value': optionValue,
+        'is_available': true,
+        'sort_order': sortOrder,
+      });
+      return;
+    }
+
+    final id = rows.first['id'] as int;
+    await client.from('product_options').update({
+      'option_name': optionName,
+      'option_value': optionValue,
+      'is_available': true,
+      'sort_order': sortOrder,
+    }).eq('id', id);
+  }
+
+  Future<void> _upsertProductImage({
+    required SupabaseClient client,
+    required int productId,
+    required String imageUrl,
+    required String altText,
+    required int sortOrder,
+  }) async {
+    final rows = await client
+        .from('product_images')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('sort_order', sortOrder)
+        .limit(1);
+
+    if ((rows as List<dynamic>).isEmpty) {
+      await client.from('product_images').insert({
+        'product_id': productId,
+        'image_url': imageUrl,
+        'alt_text': altText,
+        'sort_order': sortOrder,
+      });
+      return;
+    }
+
+    final id = rows.first['id'] as int;
+    await client.from('product_images').update({
+      'image_url': imageUrl,
+      'alt_text': altText,
+    }).eq('id', id);
+  }
+
+  Future<GoldOrnamentProduct?> _submitUpdate() async {
+    final productId = editProductId;
+    if (productId == null) {
+      errorMessage = 'Missing product id for update.';
+      notifyListeners();
+      return null;
+    }
+
+    isSubmitting = true;
+    errorMessage = null;
+    notifyListeners();
+
+    String? uploadedPrimaryImageUrl;
+    String? uploadedHoverImageUrl;
+
+    try {
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser == null) {
+        errorMessage = 'You must be signed in to update products.';
+        isSubmitting = false;
+        notifyListeners();
+        return null;
+      }
+
+      final draft = buildProduct();
+      final legacyMetalType = _legacyProductMetalType(draft.metalType);
+      if (legacyMetalType == null) {
+        errorMessage =
+            'Selected metal "${draft.metalType}" is not supported by product_metal constraint. Use Gold, White Gold, Rose Gold, Platinum or Silver naming.';
+        isSubmitting = false;
+        notifyListeners();
+        return null;
+      }
+
+      String imageUrl = (existingPrimaryImageUrl ?? '').trim();
+      String hoverImageUrl = (existingHoverImageUrl ?? '').trim();
+
+      if (selectedPrimaryImageBytes != null && selectedPrimaryImageName != null) {
+        uploadedPrimaryImageUrl = await _uploadImageToStorage(
+          type: ProductImageType.primary,
+          productName: draft.name,
+        );
+        imageUrl = uploadedPrimaryImageUrl;
+      }
+
+      if (selectedHoverImageBytes != null && selectedHoverImageName != null) {
+        uploadedHoverImageUrl = await _uploadImageToStorage(
+          type: ProductImageType.hover,
+          productName: draft.name,
+        );
+        hoverImageUrl = uploadedHoverImageUrl;
+      }
+
+      final formattedLongDescription =
+          draft.longDescription.isEmpty ? draft.description : draft.longDescription;
+
+      final client = Supabase.instance.client;
+      await client
+          .from('products')
+          .update({
+            'name': draft.name,
+            'category_id': draft.categoryId,
+            'collection_id': draft.collectionId,
+            'description': draft.description,
+            'long_description': formattedLongDescription,
+            'base_price': draft.basePrice,
+            'original_price': draft.originalPrice,
+            'metaltype': draft.metalType,
+            'image_url': imageUrl.isEmpty ? null : imageUrl,
+            'hover_image_url': hoverImageUrl.isEmpty ? null : hoverImageUrl,
+            'stock_quantity': draft.stockQuantity,
+            'is_new': draft.isNew,
+            'is_best_seller': draft.isBestSeller,
+            'is_engravable': draft.isEngravable,
+            'is_active': draft.isActive,
+          })
+          .eq('id', productId);
+
+      await _upsertProductMetal(
+        client: client,
+        productId: productId,
+        metalType: legacyMetalType,
+        purity: '${draft.purityKarat}K',
+      );
+
+      await _upsertRingSize(
+        client: client,
+        productId: productId,
+        ringSize: draft.ringSize,
+      );
+
+      await _upsertVariant(
+        client: client,
+        productId: productId,
+        sku: _buildSku(draft.name),
+        metalType: draft.metalType,
+        caratWeight: draft.caratWeight,
+        diamondType: hasDiamond ? draft.diamondType : 'None',
+        ringSize: draft.ringSize,
+        stockQuantity: draft.stockQuantity,
+        stockNumber: draft.stockNumber,
+        isActive: draft.isActive,
+      );
+
+      await _upsertProductOption(
+        client: client,
+        productId: productId,
+        optionType: 'metal',
+        optionName: 'Metal Type',
+        optionValue: draft.metalType,
+        sortOrder: 1,
+      );
+
+      if (hasDiamond) {
+        await _upsertProductOption(
+          client: client,
+          productId: productId,
+          optionType: 'diamond_type',
+          optionName: 'Diamond Type',
+          optionValue: draft.diamondType,
+          sortOrder: 2,
+        );
+      } else {
+        await client
+            .from('product_options')
+            .delete()
+            .eq('product_id', productId)
+            .eq('option_type', 'diamond_type');
+      }
+
+      if (imageUrl.isNotEmpty) {
+        await _upsertProductImage(
+          client: client,
+          productId: productId,
+          imageUrl: imageUrl,
+          altText: '${draft.name} main image',
+          sortOrder: 1,
+        );
+      }
+
+      if (hoverImageUrl.isNotEmpty) {
+        await _upsertProductImage(
+          client: client,
+          productId: productId,
+          imageUrl: hoverImageUrl,
+          altText: '${draft.name} hover image',
+          sortOrder: 2,
+        );
+      }
+
+      final oldPrimary = (existingPrimaryImageUrl ?? '').trim();
+      final oldHover = (existingHoverImageUrl ?? '').trim();
+      if (uploadedPrimaryImageUrl != null &&
+          oldPrimary.isNotEmpty &&
+          oldPrimary != uploadedPrimaryImageUrl) {
+        await _deleteUploadedImage(oldPrimary);
+      }
+      if (uploadedHoverImageUrl != null &&
+          oldHover.isNotEmpty &&
+          oldHover != uploadedHoverImageUrl) {
+        await _deleteUploadedImage(oldHover);
+      }
+
+      existingPrimaryImageUrl = imageUrl;
+      existingHoverImageUrl = hoverImageUrl;
+
+      final product = GoldOrnamentProduct(
+        productId: productId,
+        name: draft.name,
+        categoryId: draft.categoryId,
+        collectionId: draft.collectionId,
+        weightInGrams: draft.weightInGrams,
+        purityKarat: draft.purityKarat,
+        basePrice: draft.basePrice,
+        originalPrice: draft.originalPrice,
+        stockQuantity: draft.stockQuantity,
+        makingCharge: draft.makingCharge,
+        imageUrl: imageUrl,
+        hoverImageUrl: hoverImageUrl,
+        description: draft.description,
+        longDescription: draft.longDescription,
+        isNew: draft.isNew,
+        isBestSeller: draft.isBestSeller,
+        isEngravable: draft.isEngravable,
+        isActive: draft.isActive,
+        metaTitle: draft.metaTitle,
+        metaDescription: draft.metaDescription,
+        metaKeywords: draft.metaKeywords,
+        metalType: draft.metalType,
+        ringSize: draft.ringSize,
+        caratWeight: draft.caratWeight,
+        diamondType: draft.diamondType,
+        stockNumber: draft.stockNumber,
+        widthMm: draft.widthMm,
+        rhodiumFinish: draft.rhodiumFinish,
+      );
+
+      isSubmitting = false;
+      notifyListeners();
+      return product;
+    } on PostgrestException catch (e) {
+      await _deleteUploadedImage(uploadedPrimaryImageUrl);
+      await _deleteUploadedImage(uploadedHoverImageUrl);
+      errorMessage = e.message;
+    } on StorageException catch (e) {
+      await _deleteUploadedImage(uploadedPrimaryImageUrl);
+      await _deleteUploadedImage(uploadedHoverImageUrl);
+      errorMessage = e.message;
+    } on StateError catch (e) {
+      await _deleteUploadedImage(uploadedPrimaryImageUrl);
+      await _deleteUploadedImage(uploadedHoverImageUrl);
+      errorMessage = e.message;
+    } catch (_) {
+      await _deleteUploadedImage(uploadedPrimaryImageUrl);
+      await _deleteUploadedImage(uploadedHoverImageUrl);
+      errorMessage = 'Unable to update product. Check schema and RLS policies.';
+    }
+
+    isSubmitting = false;
+    notifyListeners();
+    return null;
   }
 
   GoldOrnamentProduct buildProduct() {
@@ -1385,13 +2035,20 @@ class AddProductViewModel extends ChangeNotifier {
     }
 
     if (selectedImageInputMode == ProductImageInputMode.manual) {
-      if (selectedPrimaryImageBytes == null || selectedPrimaryImageName == null) {
+      final hasPrimaryImage =
+          selectedPrimaryImageBytes != null ||
+          ((existingPrimaryImageUrl ?? '').trim().isNotEmpty);
+      final hasHoverImage =
+          selectedHoverImageBytes != null ||
+          ((existingHoverImageUrl ?? '').trim().isNotEmpty);
+
+      if (!hasPrimaryImage) {
         errorMessage = 'Normal image is required for manual upload mode';
         notifyListeners();
         return null;
       }
 
-      if (selectedHoverImageBytes == null || selectedHoverImageName == null) {
+      if (!hasHoverImage) {
         errorMessage = 'Hover image is required for manual upload mode';
         notifyListeners();
         return null;
@@ -1438,6 +2095,10 @@ class AddProductViewModel extends ChangeNotifier {
       errorMessage = 'Unable to create collection. Please try again.';
       notifyListeners();
       return null;
+    }
+
+    if (isEditMode) {
+      return _submitUpdate();
     }
 
     isSubmitting = true;
@@ -1511,6 +2172,7 @@ class AddProductViewModel extends ChangeNotifier {
             'long_description': formattedLongDescription,
             'base_price': draft.basePrice,
             'original_price': draft.originalPrice,
+            'metaltype': draft.metalType,
             'image_url': imageUrl,
             'hover_image_url': hoverImageUrl,
             'stock_quantity': draft.stockQuantity,

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../viewmodels/auth_view_model.dart';
-import 'admin_dashboard_view.dart';
 
 class SignInView extends StatefulWidget {
   const SignInView({super.key});
@@ -39,12 +38,6 @@ class _SignInViewState extends State<SignInView> {
       );
       return;
     }
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (context) => const AdminDashboardView(),
-      ),
-    );
   }
 
   @override

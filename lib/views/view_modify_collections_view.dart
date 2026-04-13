@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'add_collection_view.dart';
+
 class ViewModifyCollectionsView extends StatefulWidget {
   const ViewModifyCollectionsView({super.key});
 
@@ -95,137 +97,11 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
   }
 
   Future<void> _openEditDialog(_CollectionItem item) async {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: item.name);
-    final slugController = TextEditingController(text: item.slug);
-    final subtitleController = TextEditingController(text: item.subtitle ?? '');
-    final sortOrderController = TextEditingController(
-      text: item.sortOrder.toString(),
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddCollectionView(editCollectionId: item.id),
+      ),
     );
-    var isActive = item.isActive;
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: const Text('Update Collection'),
-              content: SizedBox(
-                width: MediaQuery.sizeOf(dialogContext).width < 500
-                    ? MediaQuery.sizeOf(dialogContext).width - 48
-                    : 420,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Collection Name',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Collection Name is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: slugController,
-                          decoration: const InputDecoration(
-                            labelText: 'Slug',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Slug is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: subtitleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Subtitle (optional)',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: sortOrderController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Sort Order',
-                          ),
-                          validator: (value) {
-                            if (int.tryParse((value ?? '').trim()) == null) {
-                              return 'Enter a valid number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Active Collection'),
-                          value: isActive,
-                          onChanged: (value) {
-                            setDialogState(() {
-                              isActive = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    final isValid = formKey.currentState?.validate() ?? false;
-                    if (!isValid) {
-                      return;
-                    }
-
-                    final sortOrder = int.parse(sortOrderController.text.trim());
-                    final success = await _updateCollection(
-                      id: item.id,
-                      name: nameController.text,
-                      slug: slugController.text,
-                      subtitle: subtitleController.text,
-                      isActive: isActive,
-                      sortOrder: sortOrder,
-                    );
-
-                    if (!dialogContext.mounted) {
-                      return;
-                    }
-
-                    if (success) {
-                      Navigator.of(dialogContext).pop(true);
-                    }
-                  },
-                  child: const Text('Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    nameController.dispose();
-    slugController.dispose();
-    subtitleController.dispose();
-    sortOrderController.dispose();
 
     if (!mounted || saved != true) {
       return;

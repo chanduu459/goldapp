@@ -7,7 +7,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../viewmodels/add_product_view_model.dart';
 
 class AddProductView extends StatefulWidget {
-  const AddProductView({super.key});
+  const AddProductView({super.key, this.editProductId});
+
+  final int? editProductId;
 
   @override
   State<AddProductView> createState() => _AddProductViewState();
@@ -28,7 +30,7 @@ class _AddProductViewState extends State<AddProductView> {
   @override
   void initState() {
     super.initState();
-    _viewModel = AddProductViewModel();
+    _viewModel = AddProductViewModel(editProductId: widget.editProductId);
     _viewModel.loadReferenceData();
   }
 
@@ -54,10 +56,16 @@ class _AddProductViewState extends State<AddProductView> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Product "${product.name}" added successfully')),
+      SnackBar(
+        content: Text(
+          _viewModel.isEditMode
+              ? 'Product "${product.name}" updated successfully'
+              : 'Product "${product.name}" added successfully',
+        ),
+      ),
     );
 
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   Future<void> _onDrop({
@@ -157,9 +165,13 @@ class _AddProductViewState extends State<AddProductView> {
     required ProductImageType type,
     required String? fileName,
     required Uint8List? bytes,
+    required String? existingImageUrl,
     required VoidCallback onEnter,
     required VoidCallback onExit,
   }) {
+    final existingUrl = (existingImageUrl ?? '').trim();
+    final hasExistingUrl = existingUrl.isNotEmpty;
+
     return DropTarget(
       onDragEntered: (_) => onEnter(),
       onDragExited: (_) => onExit(),
@@ -244,6 +256,25 @@ class _AddProductViewState extends State<AddProductView> {
                     height: 170,
                     width: double.infinity,
                     fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            if (bytes == null && hasExistingUrl)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    existingUrl,
+                    height: 170,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      height: 170,
+                      color: const Color(0xFFF1F5F9),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.broken_image_outlined),
+                    ),
                   ),
                 ),
               ),
@@ -395,7 +426,9 @@ class _AddProductViewState extends State<AddProductView> {
                                                     CrossAxisAlignment.start,
                                                 children: [
                                                   Text(
-                                                    'Add Ornament',
+                                                    _viewModel.isEditMode
+                                                        ? 'Update Ornament'
+                                                        : 'Add Ornament',
                                                     maxLines: 1,
                                                     softWrap: false,
                                                     overflow: TextOverflow.ellipsis,
@@ -453,7 +486,9 @@ class _AddProductViewState extends State<AddProductView> {
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Add Ornament',
+                                                _viewModel.isEditMode
+                                                    ? 'Update Ornament'
+                                                    : 'Add Ornament',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: GoogleFonts.playfairDisplay(
@@ -465,7 +500,9 @@ class _AddProductViewState extends State<AddProductView> {
                                               ),
                                               const SizedBox(height: 8),
                                               Text(
-                                                'Create a new product with dual images and detailed specifications.',
+                                                _viewModel.isEditMode
+                                                    ? 'Edit existing product details, images, and specifications.'
+                                                    : 'Create a new product with dual images and detailed specifications.',
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: GoogleFonts.plusJakartaSans(
@@ -791,6 +828,8 @@ class _AddProductViewState extends State<AddProductView> {
                                               type: ProductImageType.primary,
                                               fileName: _viewModel.selectedPrimaryImageName,
                                               bytes: _viewModel.selectedPrimaryImageBytes,
+                                              existingImageUrl:
+                                                  _viewModel.existingPrimaryImageUrl,
                                               onEnter: () {
                                                 setState(() {
                                                   _isDraggingPrimary = true;
@@ -809,6 +848,8 @@ class _AddProductViewState extends State<AddProductView> {
                                               type: ProductImageType.hover,
                                               fileName: _viewModel.selectedHoverImageName,
                                               bytes: _viewModel.selectedHoverImageBytes,
+                                              existingImageUrl:
+                                                  _viewModel.existingHoverImageUrl,
                                               onEnter: () {
                                                 setState(() {
                                                   _isDraggingHover = true;
@@ -833,6 +874,8 @@ class _AddProductViewState extends State<AddProductView> {
                                                 type: ProductImageType.primary,
                                                 fileName: _viewModel.selectedPrimaryImageName,
                                                 bytes: _viewModel.selectedPrimaryImageBytes,
+                                                existingImageUrl:
+                                                    _viewModel.existingPrimaryImageUrl,
                                                 onEnter: () {
                                                   setState(() {
                                                     _isDraggingPrimary = true;
@@ -853,6 +896,8 @@ class _AddProductViewState extends State<AddProductView> {
                                                 type: ProductImageType.hover,
                                                 fileName: _viewModel.selectedHoverImageName,
                                                 bytes: _viewModel.selectedHoverImageBytes,
+                                                existingImageUrl:
+                                                    _viewModel.existingHoverImageUrl,
                                                 onEnter: () {
                                                   setState(() {
                                                     _isDraggingHover = true;
@@ -877,6 +922,8 @@ class _AddProductViewState extends State<AddProductView> {
                                             type: ProductImageType.primary,
                                             fileName: _viewModel.selectedPrimaryImageName,
                                             bytes: _viewModel.selectedPrimaryImageBytes,
+                                            existingImageUrl:
+                                                _viewModel.existingPrimaryImageUrl,
                                             onEnter: () {
                                               setState(() {
                                                 _isDraggingPrimary = true;
@@ -1274,8 +1321,12 @@ class _AddProductViewState extends State<AddProductView> {
                                         : const Icon(Icons.auto_awesome),
                                     label: Text(
                                       _viewModel.isSubmitting
-                                          ? 'Saving Product...'
-                                          : 'Save Product',
+                                        ? (_viewModel.isEditMode
+                                          ? 'Updating Product...'
+                                          : 'Saving Product...')
+                                        : (_viewModel.isEditMode
+                                          ? 'Update Product'
+                                          : 'Save Product'),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16,

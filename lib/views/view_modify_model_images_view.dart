@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'add_model_image_view.dart';
+
 class ViewModifyModelImagesView extends StatefulWidget {
   const ViewModifyModelImagesView({super.key});
 
@@ -41,7 +43,6 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
   bool _isLoading = false;
   bool _isSaving = false;
   String? _errorMessage;
-  List<_CategoryOption> _categories = const [];
   List<_ModelImageItem> _items = const [];
 
   @override
@@ -100,7 +101,6 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
       }
 
       setState(() {
-        _categories = categories;
         _items = items;
       });
     } on PostgrestException catch (e) {
@@ -127,151 +127,11 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
   }
 
   Future<void> _openEditDialog(_ModelImageItem item) async {
-    if (_categories.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No categories found to update this image.')),
-      );
-      return;
-    }
-
-    final formKey = GlobalKey<FormState>();
-    final titleController = TextEditingController(text: item.title);
-    final imageUrlController = TextEditingController(text: item.imageUrl ?? '');
-    final sortOrderController = TextEditingController(
-      text: item.sortOrder.toString(),
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddModelImageView(editModelImageId: item.id),
+      ),
     );
-    var selectedCategoryId = item.categoryId;
-    var isActive = item.isActive;
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              title: const Text('Update Model Image'),
-              content: SizedBox(
-                width: MediaQuery.sizeOf(dialogContext).width < 500
-                    ? MediaQuery.sizeOf(dialogContext).width - 48
-                    : 420,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: titleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Title',
-                          ),
-                          validator: (value) {
-                            if ((value ?? '').trim().isEmpty) {
-                              return 'Title is required';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<int>(
-                          initialValue: selectedCategoryId,
-                          items: _categories
-                              .map(
-                                (c) => DropdownMenuItem<int>(
-                                  value: c.id,
-                                  child: Text(c.name),
-                                ),
-                              )
-                              .toList(growable: false),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setDialogState(() {
-                                selectedCategoryId = value;
-                              });
-                            }
-                          },
-                          decoration: const InputDecoration(
-                            labelText: 'Category',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: imageUrlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Image URL',
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: sortOrderController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Sort Order',
-                          ),
-                          validator: (value) {
-                            if (int.tryParse((value ?? '').trim()) == null) {
-                              return 'Enter a valid number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Active Model Image'),
-                          value: isActive,
-                          onChanged: (value) {
-                            setDialogState(() {
-                              isActive = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () async {
-                    final isValid = formKey.currentState?.validate() ?? false;
-                    if (!isValid) {
-                      return;
-                    }
-
-                    final success = await _updateModelImage(
-                      id: item.id,
-                      title: titleController.text,
-                      categoryId: selectedCategoryId,
-                      imageUrl: imageUrlController.text,
-                      isActive: isActive,
-                      sortOrder: int.parse(sortOrderController.text.trim()),
-                    );
-
-                    if (!dialogContext.mounted) {
-                      return;
-                    }
-
-                    if (success) {
-                      Navigator.of(dialogContext).pop(true);
-                    }
-                  },
-                  child: const Text('Update'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    titleController.dispose();
-    imageUrlController.dispose();
-    sortOrderController.dispose();
 
     if (!mounted || saved != true) {
       return;
@@ -285,63 +145,6 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Model image updated successfully')),
     );
-  }
-
-  Future<bool> _updateModelImage({
-    required int id,
-    required String title,
-    required int categoryId,
-    required String imageUrl,
-    required bool isActive,
-    required int sortOrder,
-  }) async {
-    if (_isSaving) {
-      return false;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await Supabase.instance.client.from('model_images').update({
-        'title': title.trim(),
-        'category_id': categoryId,
-        'image_url': imageUrl.trim().isEmpty ? null : imageUrl.trim(),
-        'is_active': isActive,
-        'sort_order': sortOrder,
-      }).eq('id', id);
-
-      return true;
-    } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.message;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
-      return false;
-    } catch (_) {
-      if (mounted) {
-        const message = 'Unable to update model image.';
-        setState(() {
-          _errorMessage = message;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(message)),
-        );
-      }
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
   }
 
   Future<void> _confirmDeleteModelImage(_ModelImageItem item) async {
@@ -510,7 +313,7 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                         itemCount: _items.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = _items[index];
                           return Card(
@@ -534,7 +337,7 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
                                       : Image.network(
                                           item.imageUrl!,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Container(
+                                          errorBuilder: (context, error, stackTrace) => Container(
                                             color: const Color(0xFFF1F5F9),
                                             child: const Icon(Icons.broken_image_outlined),
                                           ),
