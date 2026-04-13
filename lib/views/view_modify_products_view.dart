@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'add_product_view.dart';
 import '../models/manage_product.dart';
+import '../viewmodels/add_product_view_model.dart';
 import '../viewmodels/view_modify_products_view_model.dart';
 
 class ViewModifyProductsView extends StatefulWidget {
@@ -14,6 +15,8 @@ class ViewModifyProductsView extends StatefulWidget {
 
 class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
   late final ViewModifyProductsViewModel _viewModel;
+  bool _isPreparingEdit = false;
+  int? _preparingProductId;
 
   @override
   void initState() {
@@ -29,9 +32,70 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
   }
 
   Future<void> _openEditDialog(ManageProduct product) async {
+    if (_viewModel.isSaving) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingProductId == product.id) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingProductId != product.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, fetching selected product data...')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isPreparingEdit = true;
+      _preparingProductId = product.id;
+    });
+
+    final preloadedViewModel = AddProductViewModel(editProductId: product.id);
+
+    try {
+      await preloadedViewModel.loadReferenceData();
+
+      if (!mounted) {
+        preloadedViewModel.dispose();
+        return;
+      }
+
+      if (preloadedViewModel.errorMessage != null &&
+          preloadedViewModel.categories.isEmpty) {
+        final message = preloadedViewModel.errorMessage ?? 'Unable to load product data.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+        preloadedViewModel.dispose();
+        return;
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to load product data. Please try again.'),
+          ),
+        );
+      }
+      preloadedViewModel.dispose();
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingEdit = false;
+          _preparingProductId = null;
+        });
+      }
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => AddProductView(editProductId: product.id),
+        builder: (_) => AddProductView(
+          editProductId: product.id,
+          preloadedViewModel: preloadedViewModel,
+        ),
       ),
     );
 
@@ -188,7 +252,7 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                       },
                     ),
                   ),
-                  if (_viewModel.isLoading)
+                  if (_viewModel.isLoading || _isPreparingEdit)
                     const LinearProgressIndicator(minHeight: 2),
                   if (_viewModel.errorMessage != null)
                     Padding(
@@ -284,19 +348,36 @@ class _ViewModifyProductsViewState extends State<ViewModifyProductsView> {
                                       ],
                                     );
 
+                                    final isThisPreparing =
+                                        _isPreparingEdit &&
+                                            _preparingProductId == product.id;
+
                                     final actions = Wrap(
                                       spacing: 8,
                                       runSpacing: 8,
                                       children: [
+                                        // Show per-row fetch state before opening edit form.
                                         FilledButton.tonalIcon(
-                                          onPressed: _viewModel.isSaving
+                                          onPressed: _viewModel.isSaving || isThisPreparing
                                               ? null
                                               : () => _openEditDialog(product),
-                                          icon: const Icon(Icons.edit),
-                                          label: const Text('Update'),
+                                          icon: isThisPreparing
+                                              ? const SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                  ),
+                                                )
+                                              : const Icon(Icons.edit),
+                                          label: Text(
+                                            isThisPreparing
+                                                ? '    '
+                                                : 'Update',
+                                          ),
                                         ),
                                         FilledButton.icon(
-                                          onPressed: _viewModel.isSaving
+                                          onPressed: _viewModel.isSaving || isThisPreparing
                                               ? null
                                               : () => _confirmDeleteProduct(
                                                   product,

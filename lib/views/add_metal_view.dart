@@ -3,9 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddMetalView extends StatefulWidget {
-  const AddMetalView({super.key, this.editMetalId});
+  const AddMetalView({
+    super.key,
+    this.editMetalId,
+    this.preloadedEditRow,
+  });
 
   final String? editMetalId;
+  final Map<String, dynamic>? preloadedEditRow;
 
   @override
   State<AddMetalView> createState() => _AddMetalViewState();
@@ -26,8 +31,17 @@ class _AddMetalViewState extends State<AddMetalView> {
   void initState() {
     super.initState();
     if (_isEditMode) {
-      _loadExistingMetal();
+      if (widget.preloadedEditRow != null) {
+        _applyPreloadedMetal(widget.preloadedEditRow!);
+      } else {
+        _loadExistingMetal();
+      }
     }
+  }
+
+  void _applyPreloadedMetal(Map<String, dynamic> row) {
+    _nameController.text = (row['name'] as String? ?? '').trim();
+    _unitController.text = (row['unit'] as String? ?? '').trim();
   }
 
   @override

@@ -43,6 +43,8 @@ class _MetalPriceItem {
 class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isPreparingEdit = false;
+  String? _preparingPriceId;
   String? _errorMessage;
 
   List<_MetalOption> _metals = const [];
@@ -138,9 +140,78 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
   }
 
   Future<void> _openEditDialog(_MetalPriceItem item) async {
+    if (_isSaving) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingPriceId == item.id) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingPriceId != item.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, fetching selected metal price data...')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isPreparingEdit = true;
+      _preparingPriceId = item.id;
+    });
+
+    List<Map<String, dynamic>>? preloadedMetals;
+    Map<String, dynamic>? preloadedRow;
+    try {
+      final metalsRows = await Supabase.instance.client
+          .from('metals')
+          .select('id, name, unit')
+          .order('name', ascending: true);
+
+      final row = await Supabase.instance.client
+          .from('metal_prices')
+          .select('metal_id, price, price_date')
+          .eq('id', item.id)
+          .single();
+
+      preloadedMetals = (metalsRows as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList(growable: false);
+      preloadedRow = Map<String, dynamic>.from(row);
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load metal price data. Please try again.')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingEdit = false;
+          _preparingPriceId = null;
+        });
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AddMetalPriceView(editMetalPriceId: item.id),
+        builder: (_) => AddMetalPriceView(
+          editMetalPriceId: item.id,
+          preloadedMetals: preloadedMetals,
+          preloadedEditRow: preloadedRow,
+        ),
       ),
     );
 
@@ -278,7 +349,7 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
                   ],
                 ),
               ),
-              if (_isLoading || _isSaving)
+              if (_isLoading || _isSaving || _isPreparingEdit)
                 const LinearProgressIndicator(minHeight: 2),
               if (_errorMessage != null)
                 Padding(
@@ -324,9 +395,11 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                         itemCount: _prices.length,
-                      separatorBuilder: (_, index) => const SizedBox(height: 10),
+                      separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = _prices[index];
+                          final isThisPreparing =
+                              _isPreparingEdit && _preparingPriceId == item.id;
                           return Card(
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -351,14 +424,20 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
                                 children: [
                                   IconButton(
                                     tooltip: 'Edit',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _openEditDialog(item),
-                                    icon: const Icon(Icons.edit_outlined),
+                                    icon: isThisPreparing
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.edit_outlined),
                                   ),
                                   IconButton(
                                     tooltip: 'Delete',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _confirmDeletePrice(item),
                                     icon: const Icon(

@@ -7,9 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import '../viewmodels/add_product_view_model.dart';
 
 class AddProductView extends StatefulWidget {
-  const AddProductView({super.key, this.editProductId});
+  const AddProductView({
+    super.key,
+    this.editProductId,
+    this.preloadedViewModel,
+  });
 
   final int? editProductId;
+  final AddProductViewModel? preloadedViewModel;
 
   @override
   State<AddProductView> createState() => _AddProductViewState();
@@ -30,8 +35,11 @@ class _AddProductViewState extends State<AddProductView> {
   @override
   void initState() {
     super.initState();
-    _viewModel = AddProductViewModel(editProductId: widget.editProductId);
-    _viewModel.loadReferenceData();
+    _viewModel =
+        widget.preloadedViewModel ?? AddProductViewModel(editProductId: widget.editProductId);
+    if (widget.preloadedViewModel == null) {
+      _viewModel.loadReferenceData();
+    }
   }
 
   @override

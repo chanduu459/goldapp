@@ -6,9 +6,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddCategoryView extends StatefulWidget {
-  const AddCategoryView({super.key, this.editCategoryId});
+  const AddCategoryView({
+    super.key,
+    this.editCategoryId,
+    this.preloadedEditRow,
+  });
 
   final int? editCategoryId;
+  final Map<String, dynamic>? preloadedEditRow;
 
   @override
   State<AddCategoryView> createState() => _AddCategoryViewState();
@@ -34,8 +39,22 @@ class _AddCategoryViewState extends State<AddCategoryView> {
   void initState() {
     super.initState();
     if (_isEditMode) {
-      _loadExistingCategory();
+      if (widget.preloadedEditRow != null) {
+        _applyPreloadedCategory(widget.preloadedEditRow!);
+      } else {
+        _loadExistingCategory();
+      }
     }
+  }
+
+  void _applyPreloadedCategory(Map<String, dynamic> row) {
+    _nameController.text = (row['name'] as String? ?? '').trim();
+    _slugController.text = (row['slug'] as String? ?? '').trim();
+    _descriptionController.text = (row['description'] as String? ?? '').trim();
+    _existingImageUrl = (row['image_url'] as String?)?.trim();
+    _isActive = row['is_active'] as bool? ?? true;
+    _sortOrderController.text = ((row['sort_order'] as int?) ?? 0).toString();
+    _slugManuallyEdited = true;
   }
 
   @override

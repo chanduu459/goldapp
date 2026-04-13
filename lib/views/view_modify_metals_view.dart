@@ -26,6 +26,8 @@ class _MetalItem {
 class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isPreparingEdit = false;
+  String? _preparingMetalId;
   String? _errorMessage;
   List<_MetalItem> _metals = const [];
 
@@ -86,9 +88,67 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
   }
 
   Future<void> _openEditDialog(_MetalItem item) async {
+    if (_isSaving) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingMetalId == item.id) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingMetalId != item.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, fetching selected metal data...')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isPreparingEdit = true;
+      _preparingMetalId = item.id;
+    });
+
+    Map<String, dynamic>? preloadedRow;
+    try {
+      final row = await Supabase.instance.client
+          .from('metals')
+          .select('name, unit')
+          .eq('id', item.id)
+          .single();
+      preloadedRow = Map<String, dynamic>.from(row);
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load metal data. Please try again.')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingEdit = false;
+          _preparingMetalId = null;
+        });
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AddMetalView(editMetalId: item.id),
+        builder: (_) => AddMetalView(
+          editMetalId: item.id,
+          preloadedEditRow: preloadedRow,
+        ),
       ),
     );
 
@@ -226,7 +286,7 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
                   ],
                 ),
               ),
-              if (_isLoading || _isSaving)
+              if (_isLoading || _isSaving || _isPreparingEdit)
                 const LinearProgressIndicator(minHeight: 2),
               if (_errorMessage != null)
                 Padding(
@@ -272,9 +332,11 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                         itemCount: _metals.length,
-                      separatorBuilder: (_, index) => const SizedBox(height: 10),
+                      separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = _metals[index];
+                          final isThisPreparing =
+                              _isPreparingEdit && _preparingMetalId == item.id;
                           return Card(
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -297,14 +359,20 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
                                 children: [
                                   IconButton(
                                     tooltip: 'Edit',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _openEditDialog(item),
-                                    icon: const Icon(Icons.edit_outlined),
+                                    icon: isThisPreparing
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.edit_outlined),
                                   ),
                                   IconButton(
                                     tooltip: 'Delete',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _confirmDeleteMetal(item),
                                     icon: const Icon(

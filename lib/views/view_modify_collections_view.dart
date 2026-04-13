@@ -33,6 +33,8 @@ class _CollectionItem {
 class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isPreparingEdit = false;
+  int? _preparingCollectionId;
   String? _errorMessage;
   List<_CollectionItem> _collections = const [];
 
@@ -97,9 +99,69 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
   }
 
   Future<void> _openEditDialog(_CollectionItem item) async {
+    if (_isSaving) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingCollectionId == item.id) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingCollectionId != item.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, fetching selected collection data...')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isPreparingEdit = true;
+      _preparingCollectionId = item.id;
+    });
+
+    Map<String, dynamic>? preloadedRow;
+    try {
+      final row = await Supabase.instance.client
+          .from('collections')
+          .select(
+            'name, slug, subtitle, description, image_url, banner_image_url, is_active, sort_order',
+          )
+          .eq('id', item.id)
+          .single();
+      preloadedRow = Map<String, dynamic>.from(row);
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load collection data. Please try again.')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingEdit = false;
+          _preparingCollectionId = null;
+        });
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AddCollectionView(editCollectionId: item.id),
+        builder: (_) => AddCollectionView(
+          editCollectionId: item.id,
+          preloadedEditRow: preloadedRow,
+        ),
       ),
     );
 
@@ -115,63 +177,6 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Collection updated successfully')),
     );
-  }
-
-  Future<bool> _updateCollection({
-    required int id,
-    required String name,
-    required String slug,
-    required String subtitle,
-    required bool isActive,
-    required int sortOrder,
-  }) async {
-    if (_isSaving) {
-      return false;
-    }
-
-    setState(() {
-      _isSaving = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await Supabase.instance.client.from('collections').update({
-        'name': name.trim(),
-        'slug': slug.trim().toLowerCase(),
-        'subtitle': subtitle.trim().isEmpty ? null : subtitle.trim(),
-        'is_active': isActive,
-        'sort_order': sortOrder,
-      }).eq('id', id);
-
-      return true;
-    } on PostgrestException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = e.message;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.message)),
-        );
-      }
-      return false;
-    } catch (_) {
-      if (mounted) {
-        const message = 'Unable to update collection.';
-        setState(() {
-          _errorMessage = message;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(message)),
-        );
-      }
-      return false;
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
   }
 
   Future<void> _confirmDeleteCollection(_CollectionItem item) async {
@@ -294,7 +299,7 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
                   ],
                 ),
               ),
-              if (_isLoading || _isSaving)
+              if (_isLoading || _isSaving || _isPreparingEdit)
                 const LinearProgressIndicator(minHeight: 2),
               if (_errorMessage != null)
                 Padding(
@@ -340,9 +345,11 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                         itemCount: _collections.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = _collections[index];
+                          final isThisPreparing =
+                              _isPreparingEdit && _preparingCollectionId == item.id;
                           return Card(
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -366,14 +373,20 @@ class _ViewModifyCollectionsViewState extends State<ViewModifyCollectionsView> {
                                 children: [
                                   IconButton(
                                     tooltip: 'Edit',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _openEditDialog(item),
-                                    icon: const Icon(Icons.edit_outlined),
+                                    icon: isThisPreparing
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.edit_outlined),
                                   ),
                                   IconButton(
                                     tooltip: 'Delete',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _confirmDeleteCollection(item),
                                     icon: const Icon(

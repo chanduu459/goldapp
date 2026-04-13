@@ -42,6 +42,8 @@ class _ModelImageItem {
 class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isPreparingEdit = false;
+  int? _preparingModelImageId;
   String? _errorMessage;
   List<_ModelImageItem> _items = const [];
 
@@ -127,9 +129,79 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
   }
 
   Future<void> _openEditDialog(_ModelImageItem item) async {
+    if (_isSaving) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingModelImageId == item.id) {
+      return;
+    }
+
+    if (_isPreparingEdit && _preparingModelImageId != item.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, fetching selected model image data...')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isPreparingEdit = true;
+      _preparingModelImageId = item.id;
+    });
+
+    List<Map<String, dynamic>>? preloadedCategories;
+    Map<String, dynamic>? preloadedRow;
+    try {
+      final categoryRows = await Supabase.instance.client
+          .from('categories')
+          .select('id, name')
+          .order('sort_order', ascending: true)
+          .order('name', ascending: true);
+
+      final row = await Supabase.instance.client
+          .from('model_images')
+          .select('title, category_id, image_url, is_active, sort_order')
+          .eq('id', item.id)
+          .single();
+
+      preloadedCategories = (categoryRows as List<dynamic>)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList(growable: false);
+      preloadedRow = Map<String, dynamic>.from(row);
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+      return;
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load model image data. Please try again.')),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreparingEdit = false;
+          _preparingModelImageId = null;
+        });
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AddModelImageView(editModelImageId: item.id),
+        builder: (_) => AddModelImageView(
+          editModelImageId: item.id,
+          preloadedCategories: preloadedCategories,
+          preloadedEditRow: preloadedRow,
+        ),
       ),
     );
 
@@ -267,7 +339,7 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
                   ],
                 ),
               ),
-              if (_isLoading || _isSaving)
+              if (_isLoading || _isSaving || _isPreparingEdit)
                 const LinearProgressIndicator(minHeight: 2),
               if (_errorMessage != null)
                 Padding(
@@ -316,6 +388,8 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
                         separatorBuilder: (context, index) => const SizedBox(height: 10),
                         itemBuilder: (context, index) {
                           final item = _items[index];
+                          final isThisPreparing =
+                              _isPreparingEdit && _preparingModelImageId == item.id;
                           return Card(
                             elevation: 0,
                             shape: RoundedRectangleBorder(
@@ -357,14 +431,20 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
                                 children: [
                                   IconButton(
                                     tooltip: 'Edit',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _openEditDialog(item),
-                                    icon: const Icon(Icons.edit_outlined),
+                                    icon: isThisPreparing
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : const Icon(Icons.edit_outlined),
                                   ),
                                   IconButton(
                                     tooltip: 'Delete',
-                                    onPressed: _isSaving
+                                    onPressed: _isSaving || isThisPreparing
                                         ? null
                                         : () => _confirmDeleteModelImage(item),
                                     icon: const Icon(

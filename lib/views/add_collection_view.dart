@@ -6,9 +6,14 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddCollectionView extends StatefulWidget {
-  const AddCollectionView({super.key, this.editCollectionId});
+  const AddCollectionView({
+    super.key,
+    this.editCollectionId,
+    this.preloadedEditRow,
+  });
 
   final int? editCollectionId;
+  final Map<String, dynamic>? preloadedEditRow;
 
   @override
   State<AddCollectionView> createState() => _AddCollectionViewState();
@@ -38,8 +43,24 @@ class _AddCollectionViewState extends State<AddCollectionView> {
   void initState() {
     super.initState();
     if (_isEditMode) {
-      _loadExistingCollection();
+      if (widget.preloadedEditRow != null) {
+        _applyPreloadedCollection(widget.preloadedEditRow!);
+      } else {
+        _loadExistingCollection();
+      }
     }
+  }
+
+  void _applyPreloadedCollection(Map<String, dynamic> row) {
+    _nameController.text = (row['name'] as String? ?? '').trim();
+    _slugController.text = (row['slug'] as String? ?? '').trim();
+    _subtitleController.text = (row['subtitle'] as String? ?? '').trim();
+    _descriptionController.text = (row['description'] as String? ?? '').trim();
+    _existingImageUrl = (row['image_url'] as String?)?.trim();
+    _existingBannerImageUrl = (row['banner_image_url'] as String?)?.trim();
+    _isActive = row['is_active'] as bool? ?? true;
+    _sortOrderController.text = ((row['sort_order'] as int?) ?? 0).toString();
+    _slugManuallyEdited = true;
   }
 
   @override

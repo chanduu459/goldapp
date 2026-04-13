@@ -33,9 +33,16 @@ class _ModelImageListItem {
 }
 
 class AddModelImageView extends StatefulWidget {
-  const AddModelImageView({super.key, this.editModelImageId});
+  const AddModelImageView({
+    super.key,
+    this.editModelImageId,
+    this.preloadedCategories,
+    this.preloadedEditRow,
+  });
 
   final int? editModelImageId;
+  final List<Map<String, dynamic>>? preloadedCategories;
+  final Map<String, dynamic>? preloadedEditRow;
 
   @override
   State<AddModelImageView> createState() => _AddModelImageViewState();
@@ -61,7 +68,38 @@ class _AddModelImageViewState extends State<AddModelImageView> {
   @override
   void initState() {
     super.initState();
-    _loadCategories();
+    if (widget.preloadedCategories != null) {
+      _applyPreloadedCategories(widget.preloadedCategories!);
+      if (_isEditMode && widget.preloadedEditRow != null) {
+        _applyPreloadedModelImage(widget.preloadedEditRow!);
+      } else if (_isEditMode) {
+        _loadExistingModelImage();
+      }
+    } else {
+      _loadCategories();
+    }
+  }
+
+  void _applyPreloadedCategories(List<Map<String, dynamic>> rows) {
+    _categories = rows
+        .map(
+          (row) => _CategoryOption(
+            id: row['id'] as int,
+            name: ((row['name'] as String?) ?? 'Unnamed').trim(),
+          ),
+        )
+        .toList(growable: false);
+    if (_selectedCategoryId == null && _categories.isNotEmpty) {
+      _selectedCategoryId = _categories.first.id;
+    }
+  }
+
+  void _applyPreloadedModelImage(Map<String, dynamic> row) {
+    _titleController.text = (row['title'] as String? ?? '').trim();
+    _selectedCategoryId = row['category_id'] as int? ?? _selectedCategoryId;
+    _existingImageUrl = (row['image_url'] as String?)?.trim();
+    _isActive = row['is_active'] as bool? ?? true;
+    _sortOrderController.text = ((row['sort_order'] as int?) ?? 0).toString();
   }
 
   @override

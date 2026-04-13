@@ -3,9 +3,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddMetalPriceView extends StatefulWidget {
-  const AddMetalPriceView({super.key, this.editMetalPriceId});
+  const AddMetalPriceView({
+    super.key,
+    this.editMetalPriceId,
+    this.preloadedMetals,
+    this.preloadedEditRow,
+  });
 
   final String? editMetalPriceId;
+  final List<Map<String, dynamic>>? preloadedMetals;
+  final Map<String, dynamic>? preloadedEditRow;
 
   @override
   State<AddMetalPriceView> createState() => _AddMetalPriceViewState();
@@ -43,7 +50,39 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
   @override
   void initState() {
     super.initState();
-    _loadMetals();
+    if (widget.preloadedMetals != null) {
+      _applyPreloadedMetals(widget.preloadedMetals!);
+      if (_isEditMode && widget.preloadedEditRow != null) {
+        _applyPreloadedMetalPrice(widget.preloadedEditRow!);
+      } else if (_isEditMode) {
+        _loadExistingMetalPrice();
+      }
+    } else {
+      _loadMetals();
+    }
+  }
+
+  void _applyPreloadedMetals(List<Map<String, dynamic>> rows) {
+    _metals = rows
+        .map(
+          (row) => _MetalOption(
+            id: row['id'] as String,
+            name: (row['name'] as String? ?? '').trim(),
+            unit: (row['unit'] as String? ?? '').trim(),
+          ),
+        )
+        .toList(growable: false);
+    if (_selectedMetalId == null && _metals.isNotEmpty) {
+      _selectedMetalId = _metals.first.id;
+    }
+  }
+
+  void _applyPreloadedMetalPrice(Map<String, dynamic> row) {
+    _selectedMetalId = row['metal_id'] as String? ?? _selectedMetalId;
+    _priceController.text =
+        ((row['price'] as num?) ?? 0).toDouble().toStringAsFixed(2);
+    _selectedDate =
+        DateTime.tryParse(row['price_date'] as String? ?? '') ?? DateTime.now();
   }
 
   @override
