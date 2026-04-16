@@ -35,7 +35,7 @@ class GoldOrnamentProduct {
   final int categoryId;
   final int? collectionId;
   final double weightInGrams;
-  final int purityKarat;
+  final int? purityKarat;
   final double basePrice;
   final double? originalPrice;
   final int stockQuantity;

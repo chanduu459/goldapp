@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/auth_credentials.dart';
+import '../services/tenant_context.dart';
 
 class AuthViewModel extends ChangeNotifier {
   final formKey = GlobalKey<FormState>();
@@ -56,10 +57,21 @@ class AuthViewModel extends ChangeNotifier {
 
     try {
       final creds = credentials;
-      await Supabase.instance.client.auth.signInWithPassword(
+      final client = Supabase.instance.client;
+      await client.auth.signInWithPassword(
         email: creds.email,
         password: creds.password,
       );
+
+      final tenantId = await TenantContext.tryGetTenantId();
+      if (tenantId == null || tenantId.isEmpty) {
+        await client.auth.signOut();
+        errorMessage =
+            'No tenant is linked to this account. Contact your administrator.';
+        isSubmitting = false;
+        notifyListeners();
+        return false;
+      }
 
       isSubmitting = false;
       notifyListeners();

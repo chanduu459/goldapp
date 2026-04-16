@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
+
 class AddMetalView extends StatefulWidget {
   const AddMetalView({
     super.key,
@@ -63,10 +65,12 @@ class _AddMetalViewState extends State<AddMetalView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('metals')
           .select('name, unit')
           .eq('id', id)
+          .eq('tenant_id', tenantId)
           .single();
 
       if (!mounted) {
@@ -112,13 +116,15 @@ class _AddMetalViewState extends State<AddMetalView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       if (_isEditMode) {
         await Supabase.instance.client.from('metals').update({
           'name': _nameController.text.trim(),
           'unit': _unitController.text.trim(),
-        }).eq('id', widget.editMetalId!);
+        }).eq('id', widget.editMetalId!).eq('tenant_id', tenantId);
       } else {
         await Supabase.instance.client.from('metals').insert({
+          'tenant_id': tenantId,
           'name': _nameController.text.trim(),
           'unit': _unitController.text.trim(),
         });

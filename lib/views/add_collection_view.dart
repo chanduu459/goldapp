@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
+
 class AddCollectionView extends StatefulWidget {
   const AddCollectionView({
     super.key,
@@ -90,12 +92,14 @@ class _AddCollectionViewState extends State<AddCollectionView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('collections')
           .select(
             'name, slug, subtitle, description, image_url, banner_image_url, is_active, sort_order',
           )
           .eq('id', id)
+          .eq('tenant_id', tenantId)
           .single();
 
       if (!mounted) {
@@ -393,6 +397,7 @@ class _AddCollectionViewState extends State<AddCollectionView> {
     String? uploadedBannerImageUrl;
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final normalizedSlug = slug.isNotEmpty ? slug : _slugify(name);
 
       if (_isEditMode) {
@@ -435,7 +440,7 @@ class _AddCollectionViewState extends State<AddCollectionView> {
               : resolvedBannerImageUrl,
           'is_active': _isActive,
           'sort_order': sortOrder,
-        }).eq('id', collectionId);
+        }).eq('id', collectionId).eq('tenant_id', tenantId);
 
         if (uploadedImageUrl != null &&
             oldImageUrl.isNotEmpty &&
@@ -455,18 +460,24 @@ class _AddCollectionViewState extends State<AddCollectionView> {
         final existingNameRows = await Supabase.instance.client
             .from('collections')
             .select('id')
+            .eq('tenant_id', tenantId)
             .ilike('name', name)
             .limit(1);
 
         final existingSlugRows = await Supabase.instance.client
             .from('collections')
             .select('id')
+            .eq('tenant_id', tenantId)
             .eq('slug', slug)
             .limit(1);
 
         if (existingNameRows.isNotEmpty || existingSlugRows.isNotEmpty) {
           messenger.showSnackBar(
-            const SnackBar(content: Text('Collection already exists.')),
+            const SnackBar(
+              content: Text(
+                'Collection name or slug already exists in this tenant.',
+              ),
+            ),
           );
           return;
         }
@@ -490,6 +501,7 @@ class _AddCollectionViewState extends State<AddCollectionView> {
         }
 
         await Supabase.instance.client.from('collections').insert({
+          'tenant_id': tenantId,
           'name': name,
           'slug': slug,
           'subtitle': subtitle.isEmpty ? null : subtitle,

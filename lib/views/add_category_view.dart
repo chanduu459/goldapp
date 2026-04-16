@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
+
 class AddCategoryView extends StatefulWidget {
   const AddCategoryView({
     super.key,
@@ -83,10 +85,12 @@ class _AddCategoryViewState extends State<AddCategoryView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('categories')
           .select('name, slug, description, image_url, is_active, sort_order')
           .eq('id', id)
+          .eq('tenant_id', tenantId)
           .single();
 
       if (!mounted) {
@@ -377,6 +381,7 @@ class _AddCategoryViewState extends State<AddCategoryView> {
     String? uploadedImageUrl;
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       if (_isEditMode) {
         final categoryId = widget.editCategoryId!;
         final oldImageUrl = (_existingImageUrl ?? '').trim();
@@ -398,7 +403,7 @@ class _AddCategoryViewState extends State<AddCategoryView> {
               : resolvedImageUrl,
           'is_active': _isActive,
           'sort_order': sortOrder,
-        }).eq('id', categoryId);
+        }).eq('id', categoryId).eq('tenant_id', tenantId);
 
         if (uploadedImageUrl != null &&
             oldImageUrl.isNotEmpty &&
@@ -413,18 +418,24 @@ class _AddCategoryViewState extends State<AddCategoryView> {
         final existingNameRows = await Supabase.instance.client
             .from('categories')
             .select('id')
+            .eq('tenant_id', tenantId)
             .ilike('name', name)
             .limit(1);
 
         final existingSlugRows = await Supabase.instance.client
             .from('categories')
             .select('id')
+            .eq('tenant_id', tenantId)
             .eq('slug', slug)
             .limit(1);
 
         if (existingNameRows.isNotEmpty || existingSlugRows.isNotEmpty) {
           messenger.showSnackBar(
-            const SnackBar(content: Text('Category already exists.')),
+            const SnackBar(
+              content: Text(
+                'Category name or slug already exists in this tenant.',
+              ),
+            ),
           );
           return;
         }
@@ -436,6 +447,7 @@ class _AddCategoryViewState extends State<AddCategoryView> {
         }
 
         await Supabase.instance.client.from('categories').insert({
+          'tenant_id': tenantId,
           'name': name,
           'slug': slug,
           'description': description.isEmpty ? null : description,

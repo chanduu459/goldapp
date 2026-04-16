@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
 import 'add_metal_view.dart';
 
 class ViewModifyMetalsView extends StatefulWidget {
@@ -44,9 +45,11 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final rows = await Supabase.instance.client
           .from('metals')
           .select('id, name, unit')
+          .eq('tenant_id', tenantId)
           .order('name', ascending: true);
 
       final mapped = (rows as List<dynamic>).map((row) {
@@ -110,10 +113,12 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
 
     Map<String, dynamic>? preloadedRow;
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('metals')
           .select('name, unit')
           .eq('id', item.id)
+          .eq('tenant_id', tenantId)
           .single();
       preloadedRow = Map<String, dynamic>.from(row);
     } on PostgrestException catch (e) {
@@ -202,7 +207,12 @@ class _ViewModifyMetalsViewState extends State<ViewModifyMetalsView> {
     });
 
     try {
-      await Supabase.instance.client.from('metals').delete().eq('id', item.id);
+      final tenantId = await TenantContext.requireTenantId();
+      await Supabase.instance.client
+          .from('metals')
+          .delete()
+          .eq('id', item.id)
+          .eq('tenant_id', tenantId);
 
       if (!mounted) {
         return;

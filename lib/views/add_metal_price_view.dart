@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
+
 class AddMetalPriceView extends StatefulWidget {
   const AddMetalPriceView({
     super.key,
@@ -173,6 +175,7 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
   }
 
   Future<void> _syncProductsForMetalPrice({
+    required String tenantId,
     required String metalId,
     required double unitPrice,
   }) async {
@@ -190,6 +193,7 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     final productMetalRows = await client
         .from('product_metals')
         .select('product_id')
+      .eq('tenant_id', tenantId)
         .eq('metal_type', legacyMetalType)
         .eq('is_available', true);
 
@@ -206,6 +210,7 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     final productRows = await client
         .from('products')
         .select('id, description, long_description')
+      .eq('tenant_id', tenantId)
         .inFilter('id', productIds);
 
     for (final row in (productRows as List<dynamic>)) {
@@ -227,7 +232,9 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
 
       await client
           .from('products')
-          .update({'original_price': recalculatedPrice}).eq('id', productId);
+          .update({'original_price': recalculatedPrice})
+          .eq('id', productId)
+          .eq('tenant_id', tenantId);
     }
   }
 
@@ -238,9 +245,11 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final rows = await Supabase.instance.client
           .from('metals')
           .select('id, name, unit')
+          .eq('tenant_id', tenantId)
           .order('name', ascending: true);
 
       final mapped = (rows as List<dynamic>).map((row) {
@@ -298,10 +307,12 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('metal_prices')
           .select('metal_id, price, price_date')
           .eq('id', id)
+          .eq('tenant_id', tenantId)
           .single();
 
       if (!mounted) {
@@ -368,19 +379,22 @@ class _AddMetalPriceViewState extends State<AddMetalPriceView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       if (_isEditMode) {
         await Supabase.instance.client.from('metal_prices').update({
           'metal_id': _selectedMetalId,
           'price': parsedPrice,
           'price_date': _formatDate(_selectedDate),
-        }).eq('id', widget.editMetalPriceId!);
+        }).eq('id', widget.editMetalPriceId!).eq('tenant_id', tenantId);
 
         await _syncProductsForMetalPrice(
+          tenantId: tenantId,
           metalId: _selectedMetalId!,
           unitPrice: parsedPrice,
         );
       } else {
         await Supabase.instance.client.from('metal_prices').insert({
+          'tenant_id': tenantId,
           'metal_id': _selectedMetalId,
           'price': parsedPrice,
           'price_date': _formatDate(_selectedDate),

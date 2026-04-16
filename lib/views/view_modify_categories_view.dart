@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
 import 'add_category_view.dart';
 
 class ViewModifyCategoriesView extends StatefulWidget {
@@ -53,9 +54,11 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final rows = await Supabase.instance.client
           .from('categories')
           .select('id, name, slug, description, image_url, is_active, sort_order')
+          .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
 
@@ -124,10 +127,12 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
 
     Map<String, dynamic>? preloadedRow;
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('categories')
           .select('name, slug, description, image_url, is_active, sort_order')
           .eq('id', item.id)
+          .eq('tenant_id', tenantId)
           .single();
       preloadedRow = Map<String, dynamic>.from(row);
     } on PostgrestException catch (e) {
@@ -216,7 +221,12 @@ class _ViewModifyCategoriesViewState extends State<ViewModifyCategoriesView> {
     });
 
     try {
-      await Supabase.instance.client.from('categories').delete().eq('id', item.id);
+      final tenantId = await TenantContext.requireTenantId();
+      await Supabase.instance.client
+          .from('categories')
+          .delete()
+          .eq('id', item.id)
+          .eq('tenant_id', tenantId);
 
       if (!mounted) {
         return;

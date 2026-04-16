@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
 import '../widgets/admin_action_card.dart';
 import 'add_category_view.dart';
 import 'add_collection_view.dart';
@@ -72,6 +73,7 @@ class _AdminDashboardViewState extends State<AdminDashboardView> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await Supabase.instance.client.auth.signOut();
+      TenantContext.clearCache();
     } catch (_) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Unable to sign out. Please try again.')),

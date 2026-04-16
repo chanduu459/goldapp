@@ -682,9 +682,9 @@ class _AddProductViewState extends State<AddProductView> {
                                       controller: _viewModel.purityController,
                                       keyboardType: TextInputType.number,
                                       decoration: _fieldDecoration(
-                                        'Purity (Karat) *',
+                                        'Purity (Karat)',
                                         icon: Icons.shield_outlined,
-                                        hintText: 'e.g., 22',
+                                        hintText: 'e.g., 22 (optional)',
                                       ),
                                       validator: _viewModel.validatePurity,
                                     ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
 import 'add_model_image_view.dart';
 
 class ViewModifyModelImagesView extends StatefulWidget {
@@ -60,9 +61,11 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final categoryRows = await Supabase.instance.client
           .from('categories')
           .select('id, name')
+          .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
 
@@ -82,6 +85,7 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
       final imageRows = await Supabase.instance.client
           .from('model_images')
           .select('id, title, category_id, image_url, is_active, sort_order')
+          .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('id', ascending: false);
 
@@ -152,9 +156,11 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
     List<Map<String, dynamic>>? preloadedCategories;
     Map<String, dynamic>? preloadedRow;
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final categoryRows = await Supabase.instance.client
           .from('categories')
           .select('id, name')
+        .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
 
@@ -162,6 +168,7 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
           .from('model_images')
           .select('title, category_id, image_url, is_active, sort_order')
           .eq('id', item.id)
+        .eq('tenant_id', tenantId)
           .single();
 
       preloadedCategories = (categoryRows as List<dynamic>)
@@ -255,7 +262,12 @@ class _ViewModifyModelImagesViewState extends State<ViewModifyModelImagesView> {
     });
 
     try {
-      await Supabase.instance.client.from('model_images').delete().eq('id', item.id);
+      final tenantId = await TenantContext.requireTenantId();
+      await Supabase.instance.client
+          .from('model_images')
+          .delete()
+          .eq('id', item.id)
+          .eq('tenant_id', tenantId);
 
       if (!mounted) {
         return;

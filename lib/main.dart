@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'services/tenant_context.dart';
 import 'theme/app_theme.dart';
 import 'views/admin_dashboard_view.dart';
 import 'views/sign_in_view.dart';
@@ -46,6 +47,7 @@ class _AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         final session = snapshot.data?.session;
         if (session?.user == null) {
+          TenantContext.clearCache();
           return const SignInView();
         }
         return const AdminDashboardView();

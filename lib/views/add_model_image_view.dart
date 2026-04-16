@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
+
 class _CategoryOption {
   const _CategoryOption({required this.id, required this.name});
 
@@ -218,9 +220,11 @@ class _AddModelImageViewState extends State<AddModelImageView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final rows = await Supabase.instance.client
           .from('categories')
           .select('id, name')
+          .eq('tenant_id', tenantId)
           .eq('is_active', true)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
@@ -246,9 +250,11 @@ class _AddModelImageViewState extends State<AddModelImageView> {
         await _loadExistingModelImage();
       }
     } on PostgrestException {
+      final tenantId = await TenantContext.requireTenantId();
       final rows = await Supabase.instance.client
           .from('categories')
           .select('id, name')
+          .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
 
@@ -303,10 +309,12 @@ class _AddModelImageViewState extends State<AddModelImageView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final row = await Supabase.instance.client
           .from('model_images')
           .select('title, category_id, image_url, is_active, sort_order')
           .eq('id', id)
+          .eq('tenant_id', tenantId)
           .single();
 
       if (!mounted) {
@@ -377,6 +385,7 @@ class _AddModelImageViewState extends State<AddModelImageView> {
     String? uploadedImageUrl;
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       if (_isEditMode) {
         final modelImageId = widget.editModelImageId!;
         final oldImageUrl = (_existingImageUrl ?? '').trim();
@@ -395,7 +404,7 @@ class _AddModelImageViewState extends State<AddModelImageView> {
               : resolvedImageUrl,
           'is_active': _isActive,
           'sort_order': sortOrder,
-        }).eq('id', modelImageId);
+        }).eq('id', modelImageId).eq('tenant_id', tenantId);
 
         if (uploadedImageUrl != null &&
             oldImageUrl.isNotEmpty &&
@@ -406,6 +415,7 @@ class _AddModelImageViewState extends State<AddModelImageView> {
         uploadedImageUrl = await _uploadImageToStorage(title: title);
 
         await Supabase.instance.client.from('model_images').insert({
+          'tenant_id': tenantId,
           'title': title,
           'category_id': _selectedCategoryId,
           'image_url': uploadedImageUrl,
@@ -805,9 +815,11 @@ class _ViewModelImagesViewState extends State<ViewModelImagesView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final categoryRows = await Supabase.instance.client
           .from('categories')
-          .select('id, name');
+          .select('id, name')
+          .eq('tenant_id', tenantId);
 
       final categoryMap = <int, String>{};
       for (final row in (categoryRows as List<dynamic>)) {
@@ -822,6 +834,7 @@ class _ViewModelImagesViewState extends State<ViewModelImagesView> {
       final imageRows = await Supabase.instance.client
           .from('model_images')
           .select('id, title, category_id, image_url, is_active, created_at')
+          .eq('tenant_id', tenantId)
           .order('created_at', ascending: false);
 
       final items = (imageRows as List<dynamic>).map((row) {

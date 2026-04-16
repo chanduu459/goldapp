@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/manage_product.dart';
+import '../services/tenant_context.dart';
 
 class ViewModifyProductsViewModel extends ChangeNotifier {
   bool isLoading = false;
@@ -38,9 +39,11 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     _notifySafely();
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final collectionRows = await Supabase.instance.client
           .from('collections')
           .select('id, name')
+          .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
 
@@ -56,6 +59,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       final categoryRows = await Supabase.instance.client
           .from('categories')
           .select('id, name')
+          .eq('tenant_id', tenantId)
           .order('sort_order', ascending: true)
           .order('name', ascending: true);
 
@@ -73,6 +77,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
           .select(
           'id, name, category_id, collection_id, base_price, original_price, image_url, hover_image_url, description, long_description, stock_quantity, is_new, is_best_seller, is_engravable, is_active, metaltype, categories(name), collections(name), product_metals(metal_type,purity), ring_sizes(size_label,size_number), product_variants(carat,diamond_type,ring_size,barcode,stock_quantity)',
           )
+          .eq('tenant_id', tenantId)
           .order('id', ascending: false);
 
       products = (productRows as List<dynamic>)
@@ -264,6 +269,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     String? uploadedHoverImageUrl;
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final client = Supabase.instance.client;
       final normalizedMetalType = metalType.trim().isEmpty ? 'Gold' : metalType.trim();
       final normalizedDiamondType =
@@ -315,10 +321,12 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
             'is_engravable': isEngravable,
             'is_active': isActive,
           })
-          .eq('id', productId);
+          .eq('id', productId)
+          .eq('tenant_id', tenantId);
 
       await _upsertProductMetal(
         client: client,
+        tenantId: tenantId,
         productId: productId,
         metalType: normalizedMetalType,
         purity: purity,
@@ -326,12 +334,14 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
 
       await _upsertRingSize(
         client: client,
+        tenantId: tenantId,
         productId: productId,
         ringSize: ringSize,
       );
 
       await _upsertVariant(
         client: client,
+        tenantId: tenantId,
         productId: productId,
         metalType: normalizedMetalType,
         caratWeight: caratWeight,
@@ -344,6 +354,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
 
       await _upsertProductOption(
         client: client,
+        tenantId: tenantId,
         productId: productId,
         optionType: 'metal',
         optionName: 'Metal Type',
@@ -356,10 +367,12 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
             .from('product_options')
             .delete()
             .eq('product_id', productId)
+            .eq('tenant_id', tenantId)
             .eq('option_type', 'diamond_type');
       } else {
         await _upsertProductOption(
           client: client,
+          tenantId: tenantId,
           productId: productId,
           optionType: 'diamond_type',
           optionName: 'Diamond Type',
@@ -404,6 +417,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
 
   Future<void> _upsertProductMetal({
     required SupabaseClient client,
+    required String tenantId,
     required int productId,
     required String metalType,
     required String purity,
@@ -411,6 +425,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     final rows = await client
         .from('product_metals')
         .select('id')
+        .eq('tenant_id', tenantId)
         .eq('product_id', productId)
         .limit(1);
 
@@ -418,6 +433,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
 
     if ((rows as List<dynamic>).isEmpty) {
       await client.from('product_metals').insert({
+        'tenant_id': tenantId,
         'product_id': productId,
         'metal_type': metalType,
         'purity': normalizedPurity,
@@ -431,17 +447,19 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       'metal_type': metalType,
       'purity': normalizedPurity,
       'is_available': true,
-    }).eq('id', id);
+    }).eq('id', id).eq('tenant_id', tenantId);
   }
 
   Future<void> _upsertRingSize({
     required SupabaseClient client,
+    required String tenantId,
     required int productId,
     required String ringSize,
   }) async {
     final rows = await client
         .from('ring_sizes')
         .select('id')
+        .eq('tenant_id', tenantId)
         .eq('product_id', productId)
         .limit(1);
 
@@ -449,6 +467,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
 
     if ((rows as List<dynamic>).isEmpty) {
       await client.from('ring_sizes').insert({
+        'tenant_id': tenantId,
         'product_id': productId,
         'size_label': normalizedRingSize,
         'size_number': double.tryParse(normalizedRingSize),
@@ -462,11 +481,12 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       'size_label': normalizedRingSize,
       'size_number': double.tryParse(normalizedRingSize),
       'is_available': true,
-    }).eq('id', id);
+    }).eq('id', id).eq('tenant_id', tenantId);
   }
 
   Future<void> _upsertVariant({
     required SupabaseClient client,
+    required String tenantId,
     required int productId,
     required String metalType,
     required double caratWeight,
@@ -479,6 +499,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     final rows = await client
         .from('product_variants')
         .select('id, sku')
+      .eq('tenant_id', tenantId)
         .eq('product_id', productId)
         .limit(1);
 
@@ -488,6 +509,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
 
     if ((rows as List<dynamic>).isEmpty) {
       await client.from('product_variants').insert({
+        'tenant_id': tenantId,
         'product_id': productId,
         'sku': '$productId-V1',
         'metal': metalType,
@@ -510,11 +532,12 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       'stock_quantity': stockQuantity,
       'barcode': normalizedStockNumber,
       'is_active': isActive,
-    }).eq('id', id);
+    }).eq('id', id).eq('tenant_id', tenantId);
   }
 
   Future<void> _upsertProductOption({
     required SupabaseClient client,
+    required String tenantId,
     required int productId,
     required String optionType,
     required String optionName,
@@ -524,12 +547,14 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     final rows = await client
         .from('product_options')
         .select('id')
+      .eq('tenant_id', tenantId)
         .eq('product_id', productId)
         .eq('option_type', optionType)
         .limit(1);
 
     if ((rows as List<dynamic>).isEmpty) {
       await client.from('product_options').insert({
+        'tenant_id': tenantId,
         'product_id': productId,
         'option_type': optionType,
         'option_name': optionName,
@@ -546,7 +571,7 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
       'option_value': optionValue,
       'is_available': true,
       'sort_order': sortOrder,
-    }).eq('id', id);
+    }).eq('id', id).eq('tenant_id', tenantId);
   }
 
   Future<bool> deleteProduct({required int productId}) async {
@@ -559,18 +584,40 @@ class ViewModifyProductsViewModel extends ChangeNotifier {
     _notifySafely();
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final client = Supabase.instance.client;
 
       // Delete children first to satisfy foreign key constraints.
-      await client.from('product_images').delete().eq('product_id', productId);
+      await client
+        .from('product_images')
+        .delete()
+        .eq('product_id', productId)
+        .eq('tenant_id', tenantId);
       await client
           .from('product_variants')
           .delete()
-          .eq('product_id', productId);
-      await client.from('product_options').delete().eq('product_id', productId);
-      await client.from('ring_sizes').delete().eq('product_id', productId);
-      await client.from('product_metals').delete().eq('product_id', productId);
-      await client.from('products').delete().eq('id', productId);
+        .eq('product_id', productId)
+        .eq('tenant_id', tenantId);
+      await client
+        .from('product_options')
+        .delete()
+        .eq('product_id', productId)
+        .eq('tenant_id', tenantId);
+      await client
+        .from('ring_sizes')
+        .delete()
+        .eq('product_id', productId)
+        .eq('tenant_id', tenantId);
+      await client
+        .from('product_metals')
+        .delete()
+        .eq('product_id', productId)
+        .eq('tenant_id', tenantId);
+      await client
+        .from('products')
+        .delete()
+        .eq('id', productId)
+        .eq('tenant_id', tenantId);
 
       await loadData();
 

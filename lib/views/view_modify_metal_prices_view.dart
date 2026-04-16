@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/tenant_context.dart';
 import 'add_metal_price_view.dart';
 
 class ViewModifyMetalPricesView extends StatefulWidget {
@@ -70,9 +71,11 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
     });
 
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final metalsRows = await Supabase.instance.client
           .from('metals')
           .select('id, name, unit')
+          .eq('tenant_id', tenantId)
           .order('name', ascending: true);
 
       final mappedMetals = (metalsRows as List<dynamic>).map((row) {
@@ -86,6 +89,7 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
       final pricesRows = await Supabase.instance.client
           .from('metal_prices')
           .select('id, metal_id, price, price_date')
+          .eq('tenant_id', tenantId)
           .order('price_date', ascending: false)
           .order('created_at', ascending: false);
 
@@ -163,15 +167,18 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
     List<Map<String, dynamic>>? preloadedMetals;
     Map<String, dynamic>? preloadedRow;
     try {
+      final tenantId = await TenantContext.requireTenantId();
       final metalsRows = await Supabase.instance.client
           .from('metals')
           .select('id, name, unit')
+        .eq('tenant_id', tenantId)
           .order('name', ascending: true);
 
       final row = await Supabase.instance.client
           .from('metal_prices')
           .select('metal_id, price, price_date')
           .eq('id', item.id)
+        .eq('tenant_id', tenantId)
           .single();
 
       preloadedMetals = (metalsRows as List<dynamic>)
@@ -265,7 +272,12 @@ class _ViewModifyMetalPricesViewState extends State<ViewModifyMetalPricesView> {
     });
 
     try {
-      await Supabase.instance.client.from('metal_prices').delete().eq('id', item.id);
+      final tenantId = await TenantContext.requireTenantId();
+      await Supabase.instance.client
+          .from('metal_prices')
+          .delete()
+          .eq('id', item.id)
+          .eq('tenant_id', tenantId);
 
       if (!mounted) {
         return;
